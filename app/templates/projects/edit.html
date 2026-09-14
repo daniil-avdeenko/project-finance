@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Редактировать проект{% endblock %}
+
+{% block content %}
+<h1>✏️ Редактировать проект</h1>
+
+<form method="post">
+    {{ form.hidden_tag() }}
+    
+    <div class="mb-3">
+        {{ form.name.label(class="form-label") }}
+        {{ form.name(class="form-control") }}
+        {% for error in form.name.errors %}
+            <div class="text-danger">{{ error }}</div>
+        {% endfor %}
+    </div>
+
+    <div class="mb-3">
+        {{ form.description.label(class="form-label") }}
+        {{ form.description(class="form-control", rows=3) }}
+        {% for error in form.description.errors %}
+            <div class="text-danger">{{ error }}</div>
+        {% endfor %}
+    </div>
+
+    <button type="submit" class="btn btn-success">💾 Сохранить</button>
+    <a href="{{ url_for('main.project_detail', project_id=project.id) }}" class="btn btn-secondary">Отмена</a>
+</form>
+{% endblock %}

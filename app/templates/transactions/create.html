@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Добавить транзакцию{% endblock %}
+
+{% block content %}
+<h1>➕ Добавить транзакцию</h1>
+
+<form method="post">
+    {{ form.hidden_tag() }}
+    
+    <div class="mb-3">
+        {{ form.type.label(class="form-label") }}
+        {{ form.type(class="form-select", id="transaction_type") }}
+    </div>
+    
+    <div class="mb-3">
+        {{ form.project_id.label(class="form-label") }}
+        {{ form.project_id(class="form-select") }}
+    </div>
+    
+    <div class="mb-3">
+        {{ form.category_id.label(class="form-label") }}
+        {{ form.category_id(class="form-select", id="category_select") }}
+        <small class="text-muted" id="category_hint">Категории зависят от выбранного типа</small>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-8">
+            {{ form.amount.label(class="form-label") }}
+            {{ form.amount(class="form-control", id="amount_input", placeholder="0.00") }}
+            {% for error in form.amount.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+        <div class="col-md-4">
+            {{ form.currency.label(class="form-label") }}
+            {{ form.currency(class="form-select") }}
+        </div>
+    </div>
+
+    <div class="mb-3">
+        {{ form.description.label(class="form-label") }}
+        {{ form.description(class="form-control", rows=2) }}
+    </div>
+
+    <div class="mb-3">
+        {{ form.date.label(class="form-label") }}
+        {{ form.date(class="form-control", type="date") }}
+    </div>
+
+    <button type="submit" class="btn btn-success">💾 Сохранить</button>
+    <a href="{{ url_for('main.transactions_list') }}" class="btn btn-secondary">Отмена</a>
+</form>
+
+<script>
+    // Данные для категорий
+    const incomeCategories = [
+        {% for cat in income_categories %}
+            { id: {{ cat.id }}, name: "{{ cat.name }}" },
+        {% endfor %}
+    ];
+    const expenseCategories = [
+        {% for cat in expense_categories %}
+            { id: {{ cat.id }}, name: "{{ cat.name }}" },
+        {% endfor %}
+    ];
+
+    function updateCategories() {
+        const type = document.getElementById('transaction_type').value;
+        const select = document.getElementById('category_select');
+        const hint = document.getElementById('category_hint');
+        select.innerHTML = '';
+        const categories = type === 'income' ? incomeCategories : expenseCategories;
+        if (categories.length === 0) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = 'Нет категорий';
+            select.appendChild(opt);
+            hint.textContent = '⚠️ Сначала добавьте категории в справочник';
+        } else {
+            categories.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat.id;
+                opt.textContent = cat.name;
+                select.appendChild(opt);
+            });
+            hint.textContent = 'Категории зависят от выбранного типа';
+        }
+    }
+
+    document.getElementById('transaction_type').addEventListener('change', updateCategories);
+    window.onload = updateCategories;
+
+    // === ФОРМАТИРОВАНИЕ СУММЫ ===
+    const amountInput = document.getElementById('amount_input');
+
+    function formatNumber(value) {
+        // Убираем всё, кроме цифр и точки
+        let clean = value.replace(/[^0-9.]/g, '');
+        // Оставляем только одну точку
+        let parts = clean.split('.');
+        if (parts.length > 2) {
+            parts = [parts[0], parts.slice(1).join('')];
+        }
+        let integer = parts[0] || '0';
+        let decimal = parts.length > 1 ? parts[1].slice(0, 2) : '';
+        // Форматируем целую часть с пробелами
+        let formattedInteger = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+        if (decimal) {
+            return formattedInteger + '.' + decimal.padEnd(2, '0');
+        }
+        return formattedInteger;
+    }
+
+    amountInput.addEventListener('input', function(e) {
+        let cursorPos = this.selectionStart;
+        let raw = this.value;
+        // Если ввели точку или запятую, оставляем как есть для ввода
+        // Но после ввода сразу форматируем
+        let formatted = formatNumber(raw);
+        if (formatted !== raw) {
+            this.value = formatted;
+            // Ставим курсор в конец
+            this.selectionStart = this.selectionEnd = this.value.length;
+        }
+    });
+
+    // При потере фокуса доводим до двух знаков после запятой
+    amountInput.addEventListener('blur', function() {
+        let raw = this.value;
+        if (!raw) return;
+        // Убираем пробелы, парсим число
+        let clean = raw.replace(/\s/g, '');
+        let num = parseFloat(clean);
+        if (!isNaN(num)) {
+            this.value = formatNumber(num.toFixed(2));
+        }
+    });
+</script>
+{% endblock %}

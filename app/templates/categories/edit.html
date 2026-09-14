@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Редактировать категорию{% endblock %}
+
+{% block content %}
+<h1>✏️ Редактировать категорию</h1>
+
+<form method="post">
+    {{ form.hidden_tag() }}
+    <div class="mb-3">
+        {{ form.name.label(class="form-label") }}
+        {{ form.name(class="form-control") }}
+    </div>
+    <button type="submit" class="btn btn-success">💾 Сохранить</button>
+    {% if category.__class__.__name__ == 'IncomeCategory' %}
+        <a href="{{ url_for('main.income_categories_list') }}" class="btn btn-secondary">Отмена</a>
+    {% else %}
+        <a href="{{ url_for('main.expense_categories_list') }}" class="btn btn-secondary">Отмена</a>
+    {% endif %}
+</form>
+{% endblock %}

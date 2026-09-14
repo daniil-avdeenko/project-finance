@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Транзакции{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-exchange-alt me-2"></i>Транзакции</h1>
+    <div>
+        <a href="{{ url_for('main.export_transactions_csv') }}" class="btn btn-success me-2">
+            <i class="fas fa-file-csv me-1"></i>Экспорт CSV
+        </a>
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('main.transaction_create') }}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i>Добавить транзакцию
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Форма фильтрации -->
+<form method="get" class="row g-3 mb-4 align-items-end">
+    <div class="col-md-2">
+        <label for="date_from" class="form-label">Транзакции с</label>
+        <input type="date" name="date_from" id="date_from" class="form-control" value="{{ date_from or '' }}">
+    </div>
+    <div class="col-md-2">
+        <label for="date_to" class="form-label">по</label>
+        <input type="date" name="date_to" id="date_to" class="form-control" value="{{ date_to or '' }}">
+    </div>
+    <div class="col-md-2">
+        <label for="type_filter" class="form-label">Тип</label>
+        <select name="type" id="type_filter" class="form-select">
+            <option value="">Все</option>
+            <option value="income" {{
+            'selected' if type_filter == 'income' else '' }}>Доходы</option>
+            <option value="expense" {{
+            'selected' if type_filter == 'expense' else '' }}>Расходы</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100">Применить</button>
+    </div>
+    <div class="col-md-2">
+        <a href="{{ url_for('main.transactions_list') }}" class="btn btn-outline-secondary w-100">Сбросить</a>
+    </div>
+</form>
+
+<!-- Список транзакций -->
+<div class="list-group" id="transactionList">
+    {% for t in transactions %}
+    <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center transaction-row"
+         style="cursor: pointer; transition: 0.2s; padding: 1rem 1.25rem;"
+         data-url="{{ url_for('main.transaction_edit', transaction_id=t.id) }}">
+
+        <!-- Левая часть: все данные (включая описание) -->
+        <div class="d-flex align-items-center gap-2" style="flex: 1; min-width: 0; overflow: hidden;">
+            <span class="badge {% if t.type == 'income' %}bg-success{% else %}bg-danger{% endif %}">
+                {{ 'Доход' if t.type == 'income' else 'Расход' }}
+            </span>
+            <span class="fw-bold">{{ t.amount|money }} {{ t.currency or 'RUB' }}</span>
+            <span class="text-muted">{{ t.project.name if t.project else '—' }}</span>
+            <span class="text-muted">{{ t.date.strftime('%d.%m.%Y') if t.date else '—' }}</span>
+            <span class="text-muted">
+                {% if t.type == 'income' %}
+                    {{ income_categories.get(t.category_id, '—') }}
+                {% else %}
+                    {{ expense_categories.get(t.category_id, '—') }}
+                {% endif %}
+            </span>
+            {% if t.description %}
+            <span class="text-muted text-truncate" style="flex: 1; min-width: 0;" title="{{ t.description }}">
+                    <i class="fas fa-comment-dots me-1"></i>{{ t.description }}
+                </span>
+            {% endif %}
+        </div>
+
+        <!-- Правая часть: кнопки -->
+        <div class="d-flex align-items-center gap-2 flex-shrink-0" style="margin-left: 10px;">
+            {% if current_user.is_admin() %}
+            <a href="{{ url_for('main.transaction_edit', transaction_id=t.id) }}"
+               class="btn btn-sm btn-outline-secondary me-1" title="Редактировать" onclick="event.stopPropagation();">
+                <i class="fas fa-pen"></i>
+            </a>
+            <form method="post" action="{{ url_for('main.transaction_delete', transaction_id=t.id) }}"
+                  style="display:inline;" onclick="event.stopPropagation();">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="button" class="btn btn-sm btn-outline-danger"
+                        data-delete-url="{{ url_for('main.transaction_delete', transaction_id=t.id) }}"
+                        data-delete-name="транзакцию {{ t.amount|money }} {{ t.currency or 'RUB' }}"
+                        title="Удалить"
+                        onclick="event.stopPropagation();">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="list-group-item text-center text-muted">
+        <i class="fas fa-info-circle me-2"></i>Нет транзакций, удовлетворяющих фильтрам.
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Пагинация -->
+{% if pagination.pages > 1 %}
+<nav aria-label="Навигация по страницам" class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if pagination.has_prev %}
+        <li class="page-item">
+            <a class="page-link"
+               href="{{ url_for('main.transactions_list', page=pagination.prev_num, date_from=date_from, date_to=date_to, type=type_filter) }}">«</a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">«</span></li>
+        {% endif %}
+
+        {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if p %}
+        <li class="page-item {% if p == pagination.page %}active{% endif %}">
+            <a class="page-link"
+               href="{{ url_for('main.transactions_list', page=p, date_from=date_from, date_to=date_to, type=type_filter) }}">{{
+                p }}</a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+        {% endfor %}
+
+        {% if pagination.has_next %}
+        <li class="page-item">
+            <a class="page-link"
+               href="{{ url_for('main.transactions_list', page=pagination.next_num, date_from=date_from, date_to=date_to, type=type_filter) }}">»</a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">»</span></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const rows = document.querySelectorAll('.transaction-row');
+        rows.forEach(row => {
+            row.addEventListener('click', function (e) {
+                if (e.target.closest('a') || e.target.closest('button') || e.target.closest('form')) {
+                    return;
+                }
+                const url = this.dataset.url;
+                if (url) {
+                    window.location.href = url;
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}
