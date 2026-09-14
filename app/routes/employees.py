@@ -1,14 +1,16 @@
-from flask import render_template, request, redirect, url_for, flash
-from app.routes.blueprint import main_bp
-from app import db
-from app.models import Employee, Project
-from app.forms import EmployeeForm
-from app.decorators import admin_required
-from flask_login import login_required
-from app.helpers import make_csv_response
-from io import StringIO
 import csv
 import json
+from io import StringIO
+
+from flask import flash, redirect, render_template, request, url_for
+from flask_login import login_required
+
+from app import db
+from app.decorators import admin_required
+from app.forms import EmployeeForm
+from app.helpers import make_csv_response
+from app.models import Employee, Project
+from app.routes.blueprint import main_bp
 
 
 def parse_project_ids(project_ids_str):
@@ -20,14 +22,14 @@ def parse_project_ids(project_ids_str):
     if not project_ids_str:
         return []
     ids = []
-    for part in project_ids_str.split(','):
+    for part in project_ids_str.split(","):
         part = part.strip()
         if part.isdigit():
             ids.append(int(part))
     return ids
 
 
-@main_bp.route('/employees')
+@main_bp.route("/employees")
 @login_required
 def employees_list():
     """
@@ -39,21 +41,21 @@ def employees_list():
     query = Employee.query
 
     # Фильтр по должности (если передан параметр)
-    position = request.args.get('position')
+    position = request.args.get("position")
     if position:
         query = query.filter(Employee.position == position)
 
     employees = query.all()
 
     # Определяем тип сортировки из параметра запроса (по умолчанию name_asc)
-    sort = request.args.get('sort', 'name_asc')
-    if sort == 'name_asc':
+    sort = request.args.get("sort", "name_asc")
+    if sort == "name_asc":
         employees.sort(key=lambda e: e.name)
-    elif sort == 'name_desc':
+    elif sort == "name_desc":
         employees.sort(key=lambda e: e.name, reverse=True)
-    elif sort == 'projects_asc':
+    elif sort == "projects_asc":
         employees.sort(key=lambda e: len(e.projects))
-    elif sort == 'projects_desc':
+    elif sort == "projects_desc":
         employees.sort(key=lambda e: len(e.projects), reverse=True)
 
     # Получаем список всех уникальных должностей для выпадающего списка
@@ -62,22 +64,30 @@ def employees_list():
 
     # Формируем опции для сортировки с флагом selected (для удобства отображения в шаблоне)
     sort_options = [
-        {'value': 'name_asc', 'label': 'ФИО А–Я', 'selected': sort == 'name_asc'},
-        {'value': 'name_desc', 'label': 'ФИО Я–А', 'selected': sort == 'name_desc'},
-        {'value': 'projects_asc', 'label': 'По проектам (↑)', 'selected': sort == 'projects_asc'},
-        {'value': 'projects_desc', 'label': 'По проектам (↓)', 'selected': sort == 'projects_desc'},
+        {"value": "name_asc", "label": "ФИО А–Я", "selected": sort == "name_asc"},
+        {"value": "name_desc", "label": "ФИО Я–А", "selected": sort == "name_desc"},
+        {
+            "value": "projects_asc",
+            "label": "По проектам (↑)",
+            "selected": sort == "projects_asc",
+        },
+        {
+            "value": "projects_desc",
+            "label": "По проектам (↓)",
+            "selected": sort == "projects_desc",
+        },
     ]
 
     return render_template(
-        'employees/list.html',
+        "employees/list.html",
         employees=employees,
         positions=positions,
         selected_position=position,
-        sort_options=sort_options
+        sort_options=sort_options,
     )
 
 
-@main_bp.route('/employees/<int:employee_id>')
+@main_bp.route("/employees/<int:employee_id>")
 @login_required
 def employee_detail(employee_id):
     """
@@ -85,44 +95,40 @@ def employee_detail(employee_id):
     список проектов с их прибылью и рентабельностью.
     """
     employee = Employee.query.get_or_404(employee_id)
-    return render_template('employees/detail.html', employee=employee)
+    return render_template("employees/detail.html", employee=employee)
 
 
-@main_bp.route('/employees/create', methods=['GET', 'POST'])
+@main_bp.route("/employees/create", methods=["GET", "POST"])
 @login_required
 @admin_required
 def employee_create():
     """Создание нового сотрудника (только для админов)."""
     form = EmployeeForm()
 
-    if request.method == 'POST' and form.validate_on_submit():
+    if request.method == "POST" and form.validate_on_submit():
         employee = Employee(
             name=form.name.data,
             position=form.position.data,
             phone=form.phone.data,
-            email=form.email.data
+            email=form.email.data,
         )
         # Обработка проектов из скрытого поля
-        project_ids = parse_project_ids(request.form.get('project_ids', ''))
+        project_ids = parse_project_ids(request.form.get("project_ids", ""))
         employee.projects = Project.query.filter(Project.id.in_(project_ids)).all()
 
         try:
             db.session.add(employee)
             db.session.commit()
-            flash('Сотрудник добавлен!', 'success')
-            return redirect(url_for('main.employees_list'))
+            flash("Сотрудник добавлен!", "success")
+            return redirect(url_for("main.employees_list"))
         except Exception as e:
             db.session.rollback()
-            flash(f'Ошибка при сохранении: {str(e)}', 'danger')
+            flash(f"Ошибка при сохранении: {str(e)}", "danger")
 
-    return render_template(
-        'employees/create.html',
-        form=form,
-        all_projects=Project.query.all()
-    )
+    return render_template("employees/create.html", form=form, all_projects=Project.query.all())
 
 
-@main_bp.route('/employees/<int:employee_id>/edit', methods=['GET', 'POST'])
+@main_bp.route("/employees/<int:employee_id>/edit", methods=["GET", "POST"])
 @login_required
 @admin_required
 def employee_edit(employee_id):
@@ -136,48 +142,47 @@ def employee_edit(employee_id):
 
     # Подготовка JSON-списка проектов сотрудника для передачи в шаблон
     employee_projects_json = json.dumps(
-        [{'id': p.id, 'name': p.name} for p in employee.projects],
-        ensure_ascii=False
+        [{"id": p.id, "name": p.name} for p in employee.projects], ensure_ascii=False
     )
 
-    if request.method == 'GET':
+    if request.method == "GET":
         return render_template(
-            'employees/edit.html',
+            "employees/edit.html",
             form=form,
             employee=employee,
             all_projects=Project.query.all(),
-            employee_projects_json=employee_projects_json
+            employee_projects_json=employee_projects_json,
         )
 
-    if request.method == 'POST' and form.validate_on_submit():
+    if request.method == "POST" and form.validate_on_submit():
         employee.name = form.name.data
         employee.position = form.position.data
         employee.phone = form.phone.data
         employee.email = form.email.data
 
         # Обработка проектов из скрытого поля (парсинг строки с ID через запятую)
-        project_ids = parse_project_ids(request.form.get('project_ids', ''))
+        project_ids = parse_project_ids(request.form.get("project_ids", ""))
         employee.projects = Project.query.filter(Project.id.in_(project_ids)).all()
 
         try:
             db.session.commit()
-            flash('Сотрудник обновлён', 'success')
-            return redirect(url_for('main.employee_detail', employee_id=employee.id))
+            flash("Сотрудник обновлён", "success")
+            return redirect(url_for("main.employee_detail", employee_id=employee.id))
         except Exception as e:
             db.session.rollback()
-            flash(f'Ошибка при обновлении: {str(e)}', 'danger')
+            flash(f"Ошибка при обновлении: {str(e)}", "danger")
 
     # Если форма не прошла валидацию, возвращаем её с ошибками
     return render_template(
-        'employees/edit.html',
+        "employees/edit.html",
         form=form,
         employee=employee,
         all_projects=Project.query.all(),
-        employee_projects_json=employee_projects_json
+        employee_projects_json=employee_projects_json,
     )
 
 
-@main_bp.route('/employees/<int:employee_id>/delete', methods=['POST'])
+@main_bp.route("/employees/<int:employee_id>/delete", methods=["POST"])
 @login_required
 @admin_required
 def employee_delete(employee_id):
@@ -189,14 +194,14 @@ def employee_delete(employee_id):
     try:
         db.session.delete(employee)
         db.session.commit()
-        flash('Сотрудник удалён', 'warning')
+        flash("Сотрудник удалён", "warning")
     except Exception as e:
         db.session.rollback()
-        flash(f'Ошибка при удалении: {str(e)}', 'danger')
-    return redirect(url_for('main.employees_list'))
+        flash(f"Ошибка при удалении: {str(e)}", "danger")
+    return redirect(url_for("main.employees_list"))
 
 
-@main_bp.route('/employees/export')
+@main_bp.route("/employees/export")
 @login_required
 def export_employees_csv():
     """
@@ -206,18 +211,20 @@ def export_employees_csv():
     """
     employees = Employee.query.all()
     si = StringIO()
-    writer = csv.writer(si, delimiter=';', quoting=csv.QUOTE_MINIMAL)
-    writer.writerow(['ID', 'ФИО', 'Должность', 'Телефон', 'Email', 'Проекты'])
+    writer = csv.writer(si, delimiter=";", quoting=csv.QUOTE_MINIMAL)
+    writer.writerow(["ID", "ФИО", "Должность", "Телефон", "Email", "Проекты"])
     for emp in employees:
-        projects_names = ', '.join([p.name for p in emp.projects])
-        writer.writerow([
-            emp.id,
-            emp.name,
-            emp.position or '',
-            emp.phone or '',
-            emp.email or '',
-            projects_names
-        ])
+        projects_names = ", ".join([p.name for p in emp.projects])
+        writer.writerow(
+            [
+                emp.id,
+                emp.name,
+                emp.position or "",
+                emp.phone or "",
+                emp.email or "",
+                projects_names,
+            ]
+        )
     csv_content = si.getvalue()
     si.close()
-    return make_csv_response(csv_content, 'employees_export.csv')
+    return make_csv_response(csv_content, "employees_export.csv")

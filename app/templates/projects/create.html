@@ -7,7 +7,7 @@
 
 <form method="post">
     {{ form.hidden_tag() }}
-    
+
     <div class="mb-3">
         {{ form.name.label(class="form-label") }}
         {{ form.name(class="form-control") }}
@@ -15,12 +15,12 @@
             <div class="text-danger">{{ error }}</div>
         {% endfor %}
     </div>
-    
+
     <div class="mb-3">
         {{ form.description.label(class="form-label") }}
         {{ form.description(class="form-control", rows=3) }}
     </div>
-    
+
     <button type="submit" class="btn btn-success">Сохранить</button>
     <a href="{{ url_for('main.projects_list') }}" class="btn btn-secondary">Отмена</a>
 </form>

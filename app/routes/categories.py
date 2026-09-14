@@ -1,22 +1,23 @@
-from flask import render_template, redirect, url_for, flash
+from flask import flash, redirect, render_template, url_for
 from flask_login import login_required
+
 from app import db
-from app.routes.blueprint import main_bp
-from app.models import IncomeCategory, ExpenseCategory, Transaction
-from app.forms import IncomeCategoryForm, ExpenseCategoryForm
 from app.decorators import admin_required
+from app.forms import ExpenseCategoryForm, IncomeCategoryForm
+from app.models import ExpenseCategory, IncomeCategory, Transaction
+from app.routes.blueprint import main_bp
 
 
 # ===== ДОХОДЫ =====
-@main_bp.route('/income-categories')
+@main_bp.route("/income-categories")
 @login_required
 def income_categories_list():
     """Список всех категорий доходов."""
     categories = IncomeCategory.query.all()
-    return render_template('categories/income.html', categories=categories)
+    return render_template("categories/income.html", categories=categories)
 
 
-@main_bp.route('/income-categories/create', methods=['GET', 'POST'])
+@main_bp.route("/income-categories/create", methods=["GET", "POST"])
 @login_required
 @admin_required
 def income_category_create():
@@ -26,12 +27,12 @@ def income_category_create():
         category = IncomeCategory(name=form.name.data)
         db.session.add(category)
         db.session.commit()
-        flash('Категория дохода добавлена', 'success')
-        return redirect(url_for('main.income_categories_list'))
-    return render_template('categories/create_income.html', form=form)
+        flash("Категория дохода добавлена", "success")
+        return redirect(url_for("main.income_categories_list"))
+    return render_template("categories/create_income.html", form=form)
 
 
-@main_bp.route('/income-categories/<int:category_id>/edit', methods=['GET', 'POST'])
+@main_bp.route("/income-categories/<int:category_id>/edit", methods=["GET", "POST"])
 @login_required
 @admin_required
 def income_category_edit(category_id):
@@ -41,12 +42,12 @@ def income_category_edit(category_id):
     if form.validate_on_submit():
         category.name = form.name.data
         db.session.commit()
-        flash('Категория обновлена', 'success')
-        return redirect(url_for('main.income_categories_list'))
-    return render_template('categories/edit.html', form=form, category=category)
+        flash("Категория обновлена", "success")
+        return redirect(url_for("main.income_categories_list"))
+    return render_template("categories/edit.html", form=form, category=category)
 
 
-@main_bp.route('/income-categories/<int:category_id>/delete', methods=['POST'])
+@main_bp.route("/income-categories/<int:category_id>/delete", methods=["POST"])
 @login_required
 @admin_required
 def income_category_delete(category_id):
@@ -56,25 +57,25 @@ def income_category_delete(category_id):
     """
     category = IncomeCategory.query.get_or_404(category_id)
     # Проверка использования в транзакциях
-    if Transaction.query.filter_by(category_id=category_id, type='income').first():
-        flash('Нельзя удалить категорию, так как она используется в транзакциях', 'danger')
-        return redirect(url_for('main.income_categories_list'))
+    if Transaction.query.filter_by(category_id=category_id, type="income").first():
+        flash("Нельзя удалить категорию, так как она используется в транзакциях", "danger")
+        return redirect(url_for("main.income_categories_list"))
     db.session.delete(category)
     db.session.commit()
-    flash('Категория удалена', 'warning')
-    return redirect(url_for('main.income_categories_list'))
+    flash("Категория удалена", "warning")
+    return redirect(url_for("main.income_categories_list"))
 
 
 # ===== РАСХОДЫ =====
-@main_bp.route('/expense-categories')
+@main_bp.route("/expense-categories")
 @login_required
 def expense_categories_list():
     """Список всех категорий расходов."""
     categories = ExpenseCategory.query.all()
-    return render_template('categories/expense.html', categories=categories)
+    return render_template("categories/expense.html", categories=categories)
 
 
-@main_bp.route('/expense-categories/create', methods=['GET', 'POST'])
+@main_bp.route("/expense-categories/create", methods=["GET", "POST"])
 @login_required
 @admin_required
 def expense_category_create():
@@ -84,12 +85,12 @@ def expense_category_create():
         category = ExpenseCategory(name=form.name.data)
         db.session.add(category)
         db.session.commit()
-        flash('Категория расхода добавлена', 'success')
-        return redirect(url_for('main.expense_categories_list'))
-    return render_template('categories/create_expense.html', form=form)
+        flash("Категория расхода добавлена", "success")
+        return redirect(url_for("main.expense_categories_list"))
+    return render_template("categories/create_expense.html", form=form)
 
 
-@main_bp.route('/expense-categories/<int:category_id>/edit', methods=['GET', 'POST'])
+@main_bp.route("/expense-categories/<int:category_id>/edit", methods=["GET", "POST"])
 @login_required
 @admin_required
 def expense_category_edit(category_id):
@@ -99,12 +100,12 @@ def expense_category_edit(category_id):
     if form.validate_on_submit():
         category.name = form.name.data
         db.session.commit()
-        flash('Категория обновлена', 'success')
-        return redirect(url_for('main.expense_categories_list'))
-    return render_template('categories/edit.html', form=form, category=category)
+        flash("Категория обновлена", "success")
+        return redirect(url_for("main.expense_categories_list"))
+    return render_template("categories/edit.html", form=form, category=category)
 
 
-@main_bp.route('/expense-categories/<int:category_id>/delete', methods=['POST'])
+@main_bp.route("/expense-categories/<int:category_id>/delete", methods=["POST"])
 @login_required
 @admin_required
 def expense_category_delete(category_id):
@@ -114,10 +115,10 @@ def expense_category_delete(category_id):
     """
     category = ExpenseCategory.query.get_or_404(category_id)
     # Проверка использования в транзакциях
-    if Transaction.query.filter_by(category_id=category_id, type='expense').first():
-        flash('Нельзя удалить категорию, так как она используется в транзакциях', 'danger')
-        return redirect(url_for('main.expense_categories_list'))
+    if Transaction.query.filter_by(category_id=category_id, type="expense").first():
+        flash("Нельзя удалить категорию, так как она используется в транзакциях", "danger")
+        return redirect(url_for("main.expense_categories_list"))
     db.session.delete(category)
     db.session.commit()
-    flash('Категория удалена', 'warning')
-    return redirect(url_for('main.expense_categories_list'))
+    flash("Категория удалена", "warning")
+    return redirect(url_for("main.expense_categories_list"))

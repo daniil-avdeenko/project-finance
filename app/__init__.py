@@ -1,14 +1,16 @@
-from flask import Flask, render_template
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
-from flask_wtf.csrf import CSRFProtect
-from flask_login import LoginManager
-from app.logging_config import setup_logging
+import os
+import sqlite3
+
 from dotenv import load_dotenv
+from flask import Flask, render_template
+from flask_login import LoginManager
+from flask_migrate import Migrate
+from flask_sqlalchemy import SQLAlchemy
+from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
-import sqlite3
-import os
+
+from app.logging_config import setup_logging
 
 load_dotenv()
 
@@ -36,24 +38,24 @@ def create_app():
     app = Flask(__name__)
 
     # Конфигурация
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-for-testing')
+    app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-key-for-testing")
 
-    database_url = os.getenv('DATABASE_URL')
+    database_url = os.getenv("DATABASE_URL")
 
     if database_url:
         # Railway/Render могут отдавать postgres://
-        if database_url.startswith('postgres://'):
-            database_url = database_url.replace('postgres://', 'postgresql://', 1)
+        if database_url.startswith("postgres://"):
+            database_url = database_url.replace("postgres://", "postgresql://", 1)
 
         # Явно указываем драйвер psycopg (v3) для SQLAlchemy
-        if database_url.startswith('postgresql://'):
-            database_url = database_url.replace('postgresql://', 'postgresql+psycopg://', 1)
+        if database_url.startswith("postgresql://"):
+            database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
 
-        app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+        app.config["SQLALCHEMY_DATABASE_URI"] = database_url
     else:
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///project_finance.db'
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///project_finance.db"
 
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     setup_logging(app)
 
@@ -62,21 +64,23 @@ def create_app():
     migrate.init_app(app, db)
     csrf.init_app(app)
     login_manager.init_app(app)
-    login_manager.login_view = 'auth.login'
-    login_manager.login_message = 'Пожалуйста, войдите для доступа.'
+    login_manager.login_view = "auth.login"
+    login_manager.login_message = "Пожалуйста, войдите для доступа."
 
     # Регистрация Blueprint'ов
     from app.routes import main_bp
+
     app.register_blueprint(main_bp)
 
     from app.routes.auth import auth_bp
+
     app.register_blueprint(auth_bp)
 
     # Глобальный фильтр для форматирования денег
-    @app.template_filter('money')
+    @app.template_filter("money")
     def money_filter(value):
         if value is None:
-            return '0.00'
+            return "0.00"
         try:
             formatted = f"{float(value):,.2f}".replace(",", " ")
             return formatted
@@ -86,13 +90,13 @@ def create_app():
     # Обработчики ошибок
     @app.errorhandler(404)
     def not_found_error(error):
-        return render_template('errors/404.html'), 404
+        return render_template("errors/404.html"), 404
 
     @app.errorhandler(500)
     def internal_error(error):
         db.session.rollback()
-        app.logger.error(f'Internal Server Error: {error}', exc_info=True)
-        return render_template('errors/500.html'), 500
+        app.logger.error(f"Internal Server Error: {error}", exc_info=True)
+        return render_template("errors/500.html"), 500
 
     return app
 
@@ -101,4 +105,5 @@ def create_app():
 @login_manager.user_loader
 def load_user(user_id):
     from app.models import User
+
     return db.session.get(User, int(user_id))

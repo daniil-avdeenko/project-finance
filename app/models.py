@@ -1,22 +1,25 @@
-from app import db
+from datetime import UTC, datetime
+
 from flask_login import UserMixin
-from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timezone
+from werkzeug.security import check_password_hash, generate_password_hash
+
+from app import db
 
 # Промежуточная таблица для связи многие-ко-многим (Employee <-> Project)
-employee_projects = db.Table('employee_projects',
-                             db.Column('employee_id', db.Integer, db.ForeignKey('employees.id'), primary_key=True),
-                             db.Column('project_id', db.Integer, db.ForeignKey('projects.id'), primary_key=True)
-                             )
+employee_projects = db.Table(
+    "employee_projects",
+    db.Column("employee_id", db.Integer, db.ForeignKey("employees.id"), primary_key=True),
+    db.Column("project_id", db.Integer, db.ForeignKey("projects.id"), primary_key=True),
+)
 
 
 class User(UserMixin, db.Model):
-    __tablename__ = 'users'
+    __tablename__ = "users"
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20), default='user')
+    role = db.Column(db.String(20), default="user")
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -25,34 +28,34 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
 
     def is_admin(self):
-        return self.role == 'admin'
+        return self.role == "admin"
 
 
 class Project(db.Model):
-    __tablename__ = 'projects'
+    __tablename__ = "projects"
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.String(255))
-    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=datetime.now(UTC))
 
     # Связь с сотрудниками (many-to-many)
-    employees = db.relationship('Employee', secondary=employee_projects, back_populates='projects')
+    employees = db.relationship("Employee", secondary=employee_projects, back_populates="projects")
     transactions = db.relationship(
-        'Transaction',
-        backref='project',
-        lazy='dynamic',
-        cascade='all, delete-orphan',
-        passive_deletes=True
+        "Transaction",
+        backref="project",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
     @property
     def total_income(self):
-        return sum(t.amount for t in self.transactions if t.type == 'income')
+        return sum(t.amount for t in self.transactions if t.type == "income")
 
     @property
     def total_expense(self):
-        return sum(t.amount for t in self.transactions if t.type == 'expense')
+        return sum(t.amount for t in self.transactions if t.type == "expense")
 
     @property
     def profit(self):
@@ -65,11 +68,11 @@ class Project(db.Model):
         return round((self.profit / self.total_income) * 100, 2)
 
     def __repr__(self):
-        return f'<Project {self.name}>'
+        return f"<Project {self.name}>"
 
 
 class Employee(db.Model):
-    __tablename__ = 'employees'
+    __tablename__ = "employees"
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -78,45 +81,47 @@ class Employee(db.Model):
     email = db.Column(db.String(100))
 
     # Связь с проектами (many-to-many)
-    projects = db.relationship('Project', secondary=employee_projects, back_populates='employees')
+    projects = db.relationship("Project", secondary=employee_projects, back_populates="employees")
 
     def __repr__(self):
-        return f'<Employee {self.name}>'
+        return f"<Employee {self.name}>"
 
 
 class IncomeCategory(db.Model):
-    __tablename__ = 'income_categories'
+    __tablename__ = "income_categories"
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     is_default = db.Column(db.Boolean, default=False)
 
     def __repr__(self):
-        return f'<IncomeCategory {self.name}>'
+        return f"<IncomeCategory {self.name}>"
 
 
 class ExpenseCategory(db.Model):
-    __tablename__ = 'expense_categories'
+    __tablename__ = "expense_categories"
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     is_default = db.Column(db.Boolean, default=False)
 
     def __repr__(self):
-        return f'<ExpenseCategory {self.name}>'
+        return f"<ExpenseCategory {self.name}>"
 
 
 class Transaction(db.Model):
-    __tablename__ = 'transactions'
+    __tablename__ = "transactions"
 
     id = db.Column(db.Integer, primary_key=True)
-    project_id = db.Column(db.Integer, db.ForeignKey('projects.id', ondelete="CASCADE"), nullable=False)
+    project_id = db.Column(
+        db.Integer, db.ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
     type = db.Column(db.String(10), nullable=False)  # 'income' или 'expense'
     category_id = db.Column(db.Integer, nullable=False)
     amount = db.Column(db.Float, nullable=False)
-    currency = db.Column(db.String(10), default='RUB')
+    currency = db.Column(db.String(10), default="RUB")
     description = db.Column(db.String(255))
-    date = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    date = db.Column(db.DateTime, default=datetime.now(UTC))
 
     def __repr__(self):
-        return f'<Transaction {self.type} {self.amount} {self.currency}>'
+        return f"<Transaction {self.type} {self.amount} {self.currency}>"
