@@ -101,7 +101,8 @@ async def sync_transactions_to_grist_httpx(transactions: list) -> dict:
             "require": {"ID2": t.id},
             "fields": {
                 "A": t.date.strftime("%Y-%m-%dT%H:%M:%S"),
-                "B": t.project_id,
+                "ID_": t.project_id,
+                "B": t.project.name,
                 "C": t.type,
                 "D": t.amount,
                 "E": t.description or "",
