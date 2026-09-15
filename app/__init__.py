@@ -10,6 +10,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
+from sqlalchemy.orm import joinedload
 
 from app.logging_config import setup_logging
 
@@ -112,7 +113,11 @@ def create_app():
         app.logger.info("Начинаю синхронизацию с Grist через httpx...")
         try:
             projects = Project.query.all()
-            transactions = Transaction.query.order_by(Transaction.date.desc()).all()
+            transactions = (
+                Transaction.query.options(joinedload(Transaction.project))
+                .order_by(Transaction.date.desc())
+                .all()
+            )
 
             # Запускаем асинхронные задачи
             asyncio.run(sync_projects_to_grist_httpx(projects))
