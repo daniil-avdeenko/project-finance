@@ -1,3 +1,4 @@
+import asyncio
 import os
 import sqlite3
 
@@ -99,21 +100,25 @@ def create_app():
         return render_template("errors/500.html"), 500
 
     # команда для импорта в Grist
-    @app.cli.command("sync-grist")
-    def sync_grist_command():
-        """Синхронизирует данные из БД в Grist."""
-        from app.integrations.grist import sync_projects_to_grist, sync_transactions_to_grist
+    @app.cli.command("sync-grist-httpx")
+    def sync_grist_httpx_command():
+        """Синхронизирует данные из БД в Grist с помощью httpx (upsert)."""
+        from app.integrations.grist_httpx import (
+            sync_projects_to_grist_httpx,
+            sync_transactions_to_grist_httpx,
+        )
         from app.models import Project, Transaction
 
-        app.logger.info("Начинаю синхронизацию с Grist...")
+        app.logger.info("Начинаю синхронизацию с Grist через httpx...")
         try:
             projects = Project.query.all()
-            sync_projects_to_grist(projects)
-
             transactions = Transaction.query.order_by(Transaction.date.desc()).all()
-            sync_transactions_to_grist(transactions)
 
-            app.logger.info("Синхронизация с Grist успешно завершена.")
+            # Запускаем асинхронные задачи
+            asyncio.run(sync_projects_to_grist_httpx(projects))
+            asyncio.run(sync_transactions_to_grist_httpx(transactions))
+
+            app.logger.info("Синхронизация с Grist через httpx успешно завершена.")
         except Exception as e:
             app.logger.error(f"Ошибка синхронизации с Grist: {e}", exc_info=True)
 
