@@ -29,6 +29,12 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
+# === Coverage ===
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
 # Google credentials
 credentials.json
 *.pem
