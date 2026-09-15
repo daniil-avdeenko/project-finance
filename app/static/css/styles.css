@@ -1,0 +1,97 @@
+/* Общие стили */
+body {
+    background: #f4f6f9;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.card {
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+    transition: 0.3s;
+}
+
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.10);
+}
+
+/* Градиентные карточки статистики */
+.stat-card {
+    color: #fff;
+    border-radius: 16px;
+    padding: 1.2rem;
+}
+.stat-card h2 {
+    font-weight: 700;
+    margin: 0;
+}
+.stat-card .stat-icon {
+    font-size: 2.2rem;
+    opacity: 0.7;
+}
+
+.list-group-item-action {
+    transition: background-color 0.2s, box-shadow 0.2s;
+}
+.list-group-item-action:hover {
+    background-color: #f8f9fa;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.card .position-absolute .btn-link {
+    color: inherit;
+}
+.card .position-absolute .btn-link:hover {
+    opacity: 0.7;
+}
+
+.bg-gradient-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.bg-gradient-success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+.bg-gradient-danger  { background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); }
+.bg-gradient-warning { background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%); }
+
+/* Цветные карточки для страницы деталей проекта (доходы, расходы, прибыль, рентабельность) */
+.text-bg-success {
+    background-color: #198754 !important;
+    color: #fff !important;
+}
+.text-bg-danger {
+    background-color: #dc3545 !important;
+    color: #fff !important;
+}
+.text-bg-primary {
+    background-color: #0d6efd !important;
+    color: #fff !important;
+}
+.text-bg-info {
+    background-color: #0dcaf0 !important;
+    color: #000 !important;
+}
+.text-bg-warning {
+    background-color: #ffc107 !important;
+    color: #000 !important;
+}
+
+/* Навбар */
+.navbar-dark.bg-dark {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%) !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+/* Кнопки */
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+}
+.btn-primary:hover {
+    background: linear-gradient(135deg, #5a6fd6 0%, #6a3f8f 100%);
+    transform: scale(1.02);
+}
+
+/* Бейджи */
+.badge {
+    font-weight: 500;
+    padding: 0.4rem 0.8rem;
+    border-radius: 30px;
+}

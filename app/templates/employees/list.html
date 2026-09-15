@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Сотрудники{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-users me-2"></i>Сотрудники</h1>
+    <div>
+        <a href="{{ url_for('main.export_employees_csv') }}" class="btn btn-success me-2">
+            <i class="fas fa-file-csv me-1"></i>Экспорт CSV
+        </a>
+        {% if current_user.is_admin() %}
+        <a href="{{ url_for('main.employee_create') }}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i>Добавить сотрудника
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<form method="get" class="row g-3 mb-4 align-items-end">
+    <div class="col-md-3">
+        <label for="position" class="form-label">Должность</label>
+        <select name="position" id="position" class="form-select">
+            <option value="">Все должности</option>
+            {% for pos in positions %}
+            <option value="{{ pos }}" {% if pos== selected_position %}selected{% endif %}>{{ pos }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Сортировка</label>
+        <select name="sort" class="form-select">
+            {% for opt in sort_options %}
+            <option value="{{ opt.value }}" {% if opt.selected %}selected{% endif %}>{{ opt.label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100">Применить</button>
+    </div>
+    <div class="col-md-1">
+        <a href="{{ url_for('main.employees_list') }}" class="btn btn-outline-secondary w-100">Сбросить</a>
+    </div>
+</form>
+
+<div class="list-group" id="employeeList">
+    {% for employee in employees %}
+    <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center employee-row"
+         style="cursor: pointer; transition: 0.2s; padding: 1rem 1.25rem;"
+         data-url="{{ url_for('main.employee_detail', employee_id=employee.id) }}">
+
+        <div class="flex-grow-1 me-3">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <span class="fw-semibold">{{ employee.name }}</span>
+                {% if employee.position %}
+                <span class="badge bg-secondary">{{ employee.position }}</span>
+                {% endif %}
+                <span class="text-muted">Кол-во проектов: {{ employee.projects|length }}</span>
+            </div>
+        </div>
+
+        {% if current_user.is_admin() %}
+        <div>
+            <a href="{{ url_for('main.employee_edit', employee_id=employee.id) }}"
+               class="btn btn-sm btn-outline-secondary me-1" title="Редактировать" onclick="event.stopPropagation();">
+                <i class="fas fa-pen"></i>
+            </a>
+            <form method="post" action="{{ url_for('main.employee_delete', employee_id=employee.id) }}"
+                  style="display:inline;" onclick="event.stopPropagation();">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="button" class="btn btn-sm btn-outline-danger"
+                        data-delete-url="{{ url_for('main.employee_delete', employee_id=employee.id) }}"
+                        data-delete-name="{{ employee.name }}"
+                        title="Удалить"
+                        onclick="event.stopPropagation();">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="list-group-item text-center text-muted">
+        <i class="fas fa-info-circle me-2"></i>Нет сотрудников.
+    </div>
+    {% endfor %}
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const rows = document.querySelectorAll('.employee-row');
+        rows.forEach(row => {
+            row.addEventListener('click', function (e) {
+                // Игнорируем клики по дочерним элементам с onclick (кнопки)
+                if (e.target.closest('a') || e.target.closest('button') || e.target.closest('form')) {
+                    return;
+                }
+                const url = this.dataset.url;
+                if (url) {
+                    window.location.href = url;
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

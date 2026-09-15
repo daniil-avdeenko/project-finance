@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}График рентабельности{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-chart-line me-2"></i>Динамика рентабельности по проектам</h1>
+    <a href="{{ url_for('main.index') }}" class="btn btn-secondary btn-sm">
+        <i class="fas fa-arrow-left me-1"></i>Назад
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header">
+                <h5>Проекты</h5>
+            </div>
+            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="selectAll" checked>
+                    <label class="form-check-label" for="selectAll">Выбрать все</label>
+                </div>
+                <hr>
+                {% for project in projects_data %}
+                <div class="form-check">
+                    <input class="form-check-input project-checkbox" type="checkbox" id="proj{{ project.id }}" value="{{ project.id }}" checked>
+                    <label class="form-check-label" for="proj{{ project.id }}">
+                        <span style="display:inline-block; width:12px; height:12px; background-color: {{ project.color }}; border-radius:50%;"></span>
+                        {{ project.name }}
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-9">
+        <div class="card">
+            <div class="card-body">
+                <canvas id="profitChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const ctx = document.getElementById('profitChart').getContext('2d');
+    const monthLabels = {{ month_labels|tojson }};
+    const projectsData = {{ projects_data|tojson }};
+
+    const datasets = projectsData.map(project => ({
+        label: project.name,
+        data: project.data,
+        borderColor: project.color,
+        backgroundColor: 'transparent',
+        borderDash: [6, 4],  // пунктирная линия
+        borderWidth: 2,
+        pointBackgroundColor: project.color,
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+        pointRadius: 6,       // крупные точки
+        pointHoverRadius: 9,
+        tension: 0.1,
+        fill: false,
+        hidden: false
+    }));
+
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: monthLabels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ' + context.parsed.y + '%';
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Управление чекбоксами
+    const checkboxes = document.querySelectorAll('.project-checkbox');
+    const selectAll = document.getElementById('selectAll');
+
+    function updateChart() {
+        const visibleIds = [];
+        checkboxes.forEach(cb => {
+            if (cb.checked) {
+                visibleIds.push(parseInt(cb.value));
+            }
+        });
+        chart.data.datasets.forEach((dataset, index) => {
+            const projectId = projectsData[index].id;
+            dataset.hidden = !visibleIds.includes(projectId);
+        });
+        chart.update();
+    }
+
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', updateChart);
+    });
+
+    selectAll.addEventListener('change', function() {
+        const isChecked = this.checked;
+        checkboxes.forEach(cb => {
+            cb.checked = isChecked;
+        });
+        updateChart();
+    });
+
+    // Инициализация состояния "Выбрать все"
+    function initSelectAll() {
+        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+        selectAll.checked = allChecked;
+    }
+    initSelectAll();
+</script>
+{% endblock %}
