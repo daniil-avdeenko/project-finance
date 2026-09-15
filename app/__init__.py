@@ -98,6 +98,25 @@ def create_app():
         app.logger.error(f"Internal Server Error: {error}", exc_info=True)
         return render_template("errors/500.html"), 500
 
+    # команда для импорта в Grist
+    @app.cli.command("sync-grist")
+    def sync_grist_command():
+        """Синхронизирует данные из БД в Grist."""
+        from app.integrations.grist import sync_projects_to_grist, sync_transactions_to_grist
+        from app.models import Project, Transaction
+
+        app.logger.info("Начинаю синхронизацию с Grist...")
+        try:
+            projects = Project.query.all()
+            sync_projects_to_grist(projects)
+
+            transactions = Transaction.query.order_by(Transaction.date.desc()).all()
+            sync_transactions_to_grist(transactions)
+
+            app.logger.info("Синхронизация с Grist успешно завершена.")
+        except Exception as e:
+            app.logger.error(f"Ошибка синхронизации с Grist: {e}", exc_info=True)
+
     return app
 
 
