@@ -19,3 +19,14 @@ exclude = ["^app/models\\.py$", "^migrations/"]
 [[tool.mypy.overrides]]
 module = "app.models"
 ignore_errors = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
+addopts = [
+    "--cov=app",
+    "--cov-report=term-missing",
+    "--cov-fail-under=80",
+]
