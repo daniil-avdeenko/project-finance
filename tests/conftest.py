@@ -2,14 +2,16 @@ import os
 import sys
 
 # Добавляем корень проекта в sys.path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Переопределяем переменные окружения ДО импорта приложения
-os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
-os.environ['SECRET_KEY'] = 'test-key'
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ["SECRET_KEY"] = "test-key"
 
 import pytest
-from app import create_app, db as _db
+
+from app import create_app
+from app import db as _db
 from app.models import User
 
 
@@ -17,13 +19,16 @@ from app.models import User
 def app():
     """Создаёт приложение с тестовой конфигурацией."""
     app = create_app()
-    app.config.update({
-        'TESTING': True,
-        'WTF_CSRF_ENABLED': False,
-    })
+    app.config.update(
+        {
+            "TESTING": True,
+            "WTF_CSRF_ENABLED": False,
+        }
+    )
 
     # Отключаем логирование в тестах
     import logging
+
     app.logger.setLevel(logging.CRITICAL)
     app.logger.handlers.clear()
 
@@ -44,8 +49,8 @@ def client(app):
 @pytest.fixture
 def admin_user(app):
     """Создаёт администратора."""
-    admin = User(username='admin', role='admin')
-    admin.set_password('admin')
+    admin = User(username="admin", role="admin")
+    admin.set_password("admin")
     _db.session.add(admin)
     _db.session.commit()
     return admin
@@ -55,8 +60,8 @@ def admin_user(app):
 def auth_client(client, admin_user):
     """Клиент с авторизованным админом."""
     with client.session_transaction() as session:
-        session['_user_id'] = str(admin_user.id)
-        session['_fresh'] = True
+        session["_user_id"] = str(admin_user.id)
+        session["_fresh"] = True
     return client
 
 
@@ -64,14 +69,14 @@ def auth_client(client, admin_user):
 def regular_client(app):
     """Клиент с авторизованным обычным пользователем (role='user')."""
     with app.app_context():
-        user = User(username='regular_user', role='user')
-        user.set_password('user_pass')
+        user = User(username="regular_user", role="user")
+        user.set_password("user_pass")
         _db.session.add(user)
         _db.session.commit()
         user_id = user.id
 
     client = app.test_client()
     with client.session_transaction() as session:
-        session['_user_id'] = str(user_id)
-        session['_fresh'] = True
+        session["_user_id"] = str(user_id)
+        session["_fresh"] = True
     return client

@@ -1,32 +1,34 @@
-from flask import render_template, request, redirect, url_for, flash
-from flask_login import login_required, current_user
-from app import db
-from app.routes.blueprint import main_bp
-from app.models import Project, Transaction, IncomeCategory, ExpenseCategory, Employee
-from app.forms import ProjectForm
-from app.decorators import admin_required
-from app.helpers import make_csv_response, parse_ids_from_string
-from datetime import datetime, timezone
-from calendar import monthrange
-from io import StringIO
 import calendar
 import csv
+from calendar import monthrange
+from datetime import UTC, datetime
+from io import StringIO
+
+from flask import flash, redirect, render_template, request, url_for
+from flask_login import current_user, login_required
+
+from app import db
+from app.decorators import admin_required
+from app.forms import ProjectForm
+from app.helpers import make_csv_response, parse_ids_from_string
+from app.models import Employee, ExpenseCategory, IncomeCategory, Project, Transaction
+from app.routes.blueprint import main_bp
 
 
-@main_bp.route('/')
+@main_bp.route("/")
 @login_required
 def index():
     """
     Дашборд: статистика по проектам за выбранный период (месяц или всё время).
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     current_year = now.year
 
-    month_param = request.args.get('month')
-    year_param = request.args.get('year')
+    month_param = request.args.get("month")
+    year_param = request.args.get("year")
 
     # Определяем период
-    if month_param == 'all' or month_param is None:
+    if month_param == "all" or month_param is None:
         start_date = None
         end_date = None
         period_label = "Весь период"
@@ -45,14 +47,14 @@ def index():
         else:
             if selected_month < 1 or selected_month > 12:
                 selected_month = 1
-            start_date = datetime(selected_year, selected_month, 1, tzinfo=timezone.utc)
+            start_date = datetime(selected_year, selected_month, 1, tzinfo=UTC)
             last_day = monthrange(selected_year, selected_month)[1]
-            end_date = datetime(selected_year, selected_month, last_day, 23, 59, 59, tzinfo=timezone.utc)
+            end_date = datetime(selected_year, selected_month, last_day, 23, 59, 59, tzinfo=UTC)
             period_label = f"{calendar.month_name[selected_month]} {selected_year}"
 
     # Базовые запросы с фильтром по дате
-    income_query = Transaction.query.filter(Transaction.type == 'income')
-    expense_query = Transaction.query.filter(Transaction.type == 'expense')
+    income_query = Transaction.query.filter(Transaction.type == "income")
+    expense_query = Transaction.query.filter(Transaction.type == "expense")
     if start_date:
         income_query = income_query.filter(Transaction.date >= start_date)
         expense_query = expense_query.filter(Transaction.date >= start_date)
@@ -73,8 +75,8 @@ def index():
     all_projects = Project.query.all()
     projects_stats = []
     for project in all_projects:
-        p_income_query = project.transactions.filter(Transaction.type == 'income')
-        p_expense_query = project.transactions.filter(Transaction.type == 'expense')
+        p_income_query = project.transactions.filter(Transaction.type == "income")
+        p_expense_query = project.transactions.filter(Transaction.type == "expense")
         if start_date:
             p_income_query = p_income_query.filter(Transaction.date >= start_date)
             p_expense_query = p_expense_query.filter(Transaction.date >= start_date)
@@ -88,15 +90,17 @@ def index():
         p_profitability = 0
         if p_income > 0:
             p_profitability = round((p_profit / p_income) * 100, 2)
-        projects_stats.append({
-            'id': project.id,
-            'name': project.name,
-            'description': project.description,
-            'profit': p_profit,
-            'profitability': p_profitability,
-            'income': p_income,
-            'expense': p_expense
-        })
+        projects_stats.append(
+            {
+                "id": project.id,
+                "name": project.name,
+                "description": project.description,
+                "profit": p_profit,
+                "profitability": p_profitability,
+                "income": p_income,
+                "expense": p_expense,
+            }
+        )
 
     total_projects = len(all_projects)
 
@@ -104,10 +108,16 @@ def index():
     current_month = now.month
     months = []
     for m in range(current_month, 0, -1):
-        months.append({'month': m, 'year': current_year, 'label': f"{calendar.month_name[m]} {current_year}"})
+        months.append(
+            {
+                "month": m,
+                "year": current_year,
+                "label": f"{calendar.month_name[m]} {current_year}",
+            }
+        )
 
     return render_template(
-        'index.html',
+        "index.html",
         projects_stats=projects_stats,
         total_projects=total_projects,
         total_income=total_income,
@@ -117,41 +127,38 @@ def index():
         selected_month=selected_month,
         selected_year=selected_year,
         months=months,
-        period_label=period_label
+        period_label=period_label,
     )
 
 
-@main_bp.route('/projects')
+@main_bp.route("/projects")
 @login_required
 def projects_list():
     """Список всех проектов."""
     projects = Project.query.all()
-    return render_template('projects/list.html', projects=projects)
+    return render_template("projects/list.html", projects=projects)
 
 
-@main_bp.route('/projects/create', methods=['GET', 'POST'])
+@main_bp.route("/projects/create", methods=["GET", "POST"])
 @login_required
 @admin_required
 def project_create():
     """Создание нового проекта (только для админов)."""
     form = ProjectForm()
     if form.validate_on_submit():
-        project = Project(
-            name=form.name.data,
-            description=form.description.data
-        )
+        project = Project(name=form.name.data, description=form.description.data)
         try:
             db.session.add(project)
             db.session.commit()
-            flash('Проект успешно создан!', 'success')
-            return redirect(url_for('main.projects_list'))
+            flash("Проект успешно создан!", "success")
+            return redirect(url_for("main.projects_list"))
         except Exception as e:
             db.session.rollback()
-            flash(f'Ошибка при создании проекта: {str(e)}', 'danger')
-    return render_template('projects/create.html', form=form)
+            flash(f"Ошибка при создании проекта: {str(e)}", "danger")
+    return render_template("projects/create.html", form=form)
 
 
-@main_bp.route('/projects/<int:project_id>', methods=['GET', 'POST'])
+@main_bp.route("/projects/<int:project_id>", methods=["GET", "POST"])
 @login_required
 def project_detail(project_id):
     """
@@ -160,17 +167,17 @@ def project_detail(project_id):
     """
     project = Project.query.get_or_404(project_id)
 
-    if request.method == 'POST' and current_user.is_admin():
-        employee_ids = parse_ids_from_string(request.form.get('employee_ids', ''))
+    if request.method == "POST" and current_user.is_admin():
+        employee_ids = parse_ids_from_string(request.form.get("employee_ids", ""))
         employees = Employee.query.filter(Employee.id.in_(employee_ids)).all()
         project.employees = employees
         try:
             db.session.commit()
-            flash('Список сотрудников обновлён', 'success')
+            flash("Список сотрудников обновлён", "success")
         except Exception as e:
             db.session.rollback()
-            flash(f'Ошибка при сохранении: {str(e)}', 'danger')
-        return redirect(url_for('main.project_detail', project_id=project.id))
+            flash(f"Ошибка при сохранении: {str(e)}", "danger")
+        return redirect(url_for("main.project_detail", project_id=project.id))
 
     transactions = project.transactions.order_by(Transaction.date.desc()).all()
     income_categories = {c.id: c.name for c in IncomeCategory.query.all()}
@@ -178,16 +185,16 @@ def project_detail(project_id):
     all_employees = Employee.query.all()
 
     return render_template(
-        'projects/detail.html',
+        "projects/detail.html",
         project=project,
         transactions=transactions,
         income_categories=income_categories,
         expense_categories=expense_categories,
-        all_employees=all_employees
+        all_employees=all_employees,
     )
 
 
-@main_bp.route('/projects/<int:project_id>/edit', methods=['GET', 'POST'])
+@main_bp.route("/projects/<int:project_id>/edit", methods=["GET", "POST"])
 @login_required
 @admin_required
 def project_edit(project_id):
@@ -199,15 +206,15 @@ def project_edit(project_id):
         project.description = form.description.data
         try:
             db.session.commit()
-            flash('Проект обновлён', 'success')
-            return redirect(url_for('main.project_detail', project_id=project.id))
+            flash("Проект обновлён", "success")
+            return redirect(url_for("main.project_detail", project_id=project.id))
         except Exception as e:
             db.session.rollback()
-            flash(f'Ошибка при обновлении: {str(e)}', 'danger')
-    return render_template('projects/edit.html', form=form, project=project)
+            flash(f"Ошибка при обновлении: {str(e)}", "danger")
+    return render_template("projects/edit.html", form=form, project=project)
 
 
-@main_bp.route('/projects/<int:project_id>/delete', methods=['POST'])
+@main_bp.route("/projects/<int:project_id>/delete", methods=["POST"])
 @login_required
 @admin_required
 def project_delete(project_id):
@@ -216,42 +223,58 @@ def project_delete(project_id):
     try:
         db.session.delete(project)
         db.session.commit()
-        flash('Проект удалён', 'warning')
+        flash("Проект удалён", "warning")
     except Exception as e:
         db.session.rollback()
-        flash(f'Ошибка при удалении: {str(e)}', 'danger')
-    return redirect(url_for('main.projects_list'))
+        flash(f"Ошибка при удалении: {str(e)}", "danger")
+    return redirect(url_for("main.projects_list"))
 
 
-@main_bp.route('/projects/export')
+@main_bp.route("/projects/export")
 @login_required
 def export_projects_csv():
     projects = Project.query.all()
     si = StringIO()
-    writer = csv.writer(si, delimiter=';', quoting=csv.QUOTE_MINIMAL)
-    writer.writerow(['ID', 'Название', 'Описание',
-                     'Доходы (₽)', 'Расходы (₽)', 'Прибыль (₽)',
-                     'Рентабельность (%)',
-                     'Кол-во сотрудников', 'Кол-во транзакций'])
+    writer = csv.writer(si, delimiter=";", quoting=csv.QUOTE_MINIMAL)
+    writer.writerow(
+        [
+            "ID",
+            "Название",
+            "Описание",
+            "Доходы (₽)",
+            "Расходы (₽)",
+            "Прибыль (₽)",
+            "Рентабельность (%)",
+            "Кол-во сотрудников",
+            "Кол-во транзакций",
+        ]
+    )
     for p in projects:
-        writer.writerow([
-            p.id, p.name, p.description or '',
-            round(p.total_income, 2), round(p.total_expense, 2),
-            round(p.profit, 2), p.profitability,
-            len(p.employees), p.transactions.count()
-        ])
+        writer.writerow(
+            [
+                p.id,
+                p.name,
+                p.description or "",
+                round(p.total_income, 2),
+                round(p.total_expense, 2),
+                round(p.profit, 2),
+                p.profitability,
+                len(p.employees),
+                p.transactions.count(),
+            ]
+        )
     csv_content = si.getvalue()
     si.close()
-    return make_csv_response(csv_content, 'projects_export.csv')
+    return make_csv_response(csv_content, "projects_export.csv")
 
 
-@main_bp.route('/chart')
+@main_bp.route("/chart")
 @login_required
 def chart():
     """
     Страница графика рентабельности по проектам за последние 6 месяцев.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     projects = Project.query.all()
 
     month_labels = []
@@ -262,9 +285,9 @@ def chart():
         if month <= 0:
             month += 12
             year -= 1
-        start_date = datetime(year, month, 1, tzinfo=timezone.utc)
+        start_date = datetime(year, month, 1, tzinfo=UTC)
         last_day = monthrange(year, month)[1]
-        end_date = datetime(year, month, last_day, 23, 59, 59, tzinfo=timezone.utc)
+        end_date = datetime(year, month, last_day, 23, 59, 59, tzinfo=UTC)
         label = f"{calendar.month_name[month]} {year}"
         month_labels.append(label)
         month_ranges.append((start_date, end_date))
@@ -273,8 +296,16 @@ def chart():
     month_ranges.reverse()
 
     color_palette = [
-        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
-        '#FF9F40', '#C9CBCF', '#536DFF', '#FF6384', '#36A2EB'
+        "#FF6384",
+        "#36A2EB",
+        "#FFCE56",
+        "#4BC0C0",
+        "#9966FF",
+        "#FF9F40",
+        "#C9CBCF",
+        "#536DFF",
+        "#FF6384",
+        "#36A2EB",
     ]
 
     projects_data = []
@@ -282,14 +313,14 @@ def chart():
         data = []
         for start_date, end_date in month_ranges:
             incomes = project.transactions.filter(
-                Transaction.type == 'income',
+                Transaction.type == "income",
                 Transaction.date >= start_date,
-                Transaction.date <= end_date
+                Transaction.date <= end_date,
             ).all()
             expenses = project.transactions.filter(
-                Transaction.type == 'expense',
+                Transaction.type == "expense",
                 Transaction.date >= start_date,
-                Transaction.date <= end_date
+                Transaction.date <= end_date,
             ).all()
             total_income = sum(t.amount for t in incomes)
             total_expense = sum(t.amount for t in expenses)
@@ -299,11 +330,13 @@ def chart():
                 profitability = round((profit / total_income) * 100, 2)
             data.append(profitability)
 
-        projects_data.append({
-            'id': project.id,
-            'name': project.name,
-            'data': data,
-            'color': color_palette[idx % len(color_palette)]
-        })
+        projects_data.append(
+            {
+                "id": project.id,
+                "name": project.name,
+                "data": data,
+                "color": color_palette[idx % len(color_palette)],
+            }
+        )
 
-    return render_template('chart.html', month_labels=month_labels, projects_data=projects_data)
+    return render_template("chart.html", month_labels=month_labels, projects_data=projects_data)
