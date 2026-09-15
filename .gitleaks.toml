@@ -9,6 +9,9 @@ paths = [
   '''\.git/''',
   '''\.pytest_cache/''',
   '''tests/.*\.py''',
+  '''^\.env$''',
+  '''\.env\.local$''',
+  '''\.env\..*$''',
 ]
 regexes = [
   '''ed25519\.Ed25519PrivateKey''',
