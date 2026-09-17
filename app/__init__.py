@@ -133,6 +133,26 @@ def create_app():
         except Exception as e:
             app.logger.error(f"Ошибка синхронизации с Grist: {e}", exc_info=True)
 
+    # команда для проверки уведомлений Telegram
+    @app.cli.command("send-test-message")
+    def send_test_message_command():
+        """Отправляет тестовое сообщение в Telegram для проверки настроек."""
+        import asyncio
+
+        from app.integrations.telegram import send_message
+
+        text = (
+            "🧪 <b>Тестовое сообщение</b>\n\n"
+            "Telegram-интеграция работает.\n"
+            "Проект: project-finance"
+        )
+
+        ok = asyncio.run(send_message(text))
+        if ok:
+            app.logger.info("Тестовое сообщение отправлено")
+        else:
+            app.logger.error("Не удалось отправить тестовое сообщение")
+
     return app
 
 
