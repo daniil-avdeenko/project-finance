@@ -9,6 +9,7 @@ exclude: |
     __pycache__/|
     \.pytest_cache/|
     migrations/
+    credentials\.json
   )
 
 repos:
