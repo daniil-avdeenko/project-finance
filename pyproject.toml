@@ -27,6 +27,13 @@ testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
 addopts = [
     "--cov=app",
+    "--cov=scheduler",
     "--cov-report=term-missing",
     "--cov-fail-under=80",
+]
+
+[tool.coverage.run]
+omit = [
+    "scheduler/runner.py",
+    "scripts/*",
 ]
