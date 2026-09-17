@@ -61,6 +61,12 @@ def create_app():
 
     setup_logging(app)
 
+    # Активируем event-driven listeners
+    from app import (
+        events,  # noqa: F401
+        models,  # noqa: F401
+    )
+
     # Инициализация расширений
     db.init_app(app)
     migrate.init_app(app, db)

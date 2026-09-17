@@ -1,4 +1,5 @@
 # seed.py
+import os
 import random
 from datetime import UTC, datetime, timedelta
 
@@ -14,6 +15,7 @@ from app.models import (
 
 
 def seed():
+    os.environ["EVENTS_ENABLED"] = "false"
     app = create_app()
     with app.app_context():
         # ---------- 1. ПОЛЬЗОВАТЕЛИ ----------
