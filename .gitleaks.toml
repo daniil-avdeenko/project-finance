@@ -9,6 +9,7 @@ paths = [
   '''\.git/''',
   '''\.pytest_cache/''',
   '''tests/.*\.py''',
+  '''credentials\.json''',
   '''^\.env$''',
   '''\.env\.local$''',
   '''\.env\..*$''',
