@@ -125,3 +125,30 @@ class Transaction(db.Model):
 
     def __repr__(self):
         return f"<Transaction {self.type} {self.amount} {self.currency}>"
+
+
+class EventLog(db.Model):
+    """
+    Очередь событий для event-driven уведомлений.
+
+    Записи создаются автоматически при INSERT Project/Transaction,
+    а scheduler раз в 30 секунд собирает pending и отправляет их в Telegram.
+    """
+
+    __tablename__ = "event_log"
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_type = db.Column(db.String(50), nullable=False, index=True)
+    payload = db.Column(db.JSON, nullable=False, default=dict)
+    status = db.Column(db.String(20), nullable=False, default="pending", index=True)
+    attempts = db.Column(db.Integer, nullable=False, default=0)
+    last_error = db.Column(db.Text, nullable=True)
+    created_at = db.Column(
+        db.DateTime, nullable=False, default=lambda: datetime.now(UTC), index=True
+    )
+    sent_at = db.Column(db.DateTime, nullable=True)
+
+    __table_args__ = (db.Index("ix_event_log_status_created", "status", "created_at"),)
+
+    def __repr__(self) -> str:
+        return f"<EventLog {self.event_type} status={self.status}>"
