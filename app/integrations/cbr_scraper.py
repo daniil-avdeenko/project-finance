@@ -48,6 +48,31 @@ def _parse_nominal(raw: str) -> int | None:
         return None
 
 
+def _cells_to_rate(cells: list[str], target_date: date) -> ScrapedRate | None:
+    """
+    Преобразует одну строку таблицы ЦБ в ScrapedRate.
+
+    Ожидаемый формат: [Цифр. код, Букв. код, Номинал, Название, Курс].
+    Возвращает None, если строка невалидна (не тот формат, битые числа).
+    """
+    if len(cells) < 5:
+        return None
+
+    code = cells[1].strip()
+    nominal = _parse_nominal(cells[2])
+    rate = _parse_rate(cells[4])
+
+    if not code or nominal is None or rate is None:
+        return None
+
+    return ScrapedRate(
+        code=code,
+        nominal=nominal,
+        rate=rate,
+        rate_date=target_date,
+    )
+
+
 async def scrape_cbr_rates(target_date: date | None = None) -> list[ScrapedRate]:
     """
     Открывает страницу ЦБ и парсит таблицу курсов.
@@ -75,24 +100,9 @@ async def scrape_cbr_rates(target_date: date | None = None) -> list[ScrapedRate]
 
                 for row in rows:
                     cells = await row.locator("td").all_text_contents()
-                    if len(cells) < 5:
-                        continue
-
-                    code = cells[1].strip()
-                    nominal = _parse_nominal(cells[2])
-                    rate = _parse_rate(cells[4])
-
-                    if not code or nominal is None or rate is None:
-                        continue
-
-                    rates.append(
-                        ScrapedRate(
-                            code=code,
-                            nominal=nominal,
-                            rate=rate,
-                            rate_date=target_date,
-                        )
-                    )
+                    parsed = _cells_to_rate([c.strip() for c in cells], target_date)
+                    if parsed:
+                        rates.append(parsed)
             finally:
                 await browser.close()
 
