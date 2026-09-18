@@ -118,3 +118,41 @@ async def sync_transactions_to_grist_httpx(transactions: list) -> dict:
     result = await client.upsert_records("Transactions", records)
     logger.info("Транзакции: добавлено %d, обновлено %d", result["added"], result["updated"])
     return result
+
+
+async def sync_rates_to_grist_httpx(rates: list) -> dict:
+    """
+    Синхронизирует курсы валют в Grist (лист ExchangeRates).
+
+    rates — список ScrapedRate. ID2 = код валюты (USD, EUR),
+    повторный запуск обновляет курс, а не создаёт дубликат.
+    """
+    api_key = os.getenv("GRIST_API_KEY")
+    doc_id = os.getenv("GRIST_DOC_ID")
+    server = os.getenv("GRIST_SERVER", "https://docs.getgrist.com")
+
+    if not api_key or not doc_id:
+        raise ValueError("GRIST_API_KEY и GRIST_DOC_ID должны быть установлены.")
+
+    client = GristClient(api_key=api_key, doc_id=doc_id, server=server)
+
+    records = [
+        {
+            "require": {"ID2": r.code},
+            "fields": {
+                "A": r.rate_date.isoformat(),
+                "B": r.code,
+                "C": r.nominal,
+                "D": r.rate,
+            },
+        }
+        for r in rates
+    ]
+
+    if not records:
+        logger.info("Нет курсов для синхронизации.")
+        return {"added": 0, "updated": 0}
+
+    result = await client.upsert_records("ExchangeRates", records)
+    logger.info("Курсы: добавлено %d, обновлено %d", result["added"], result["updated"])
+    return result

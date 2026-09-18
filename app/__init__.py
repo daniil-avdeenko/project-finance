@@ -153,6 +153,31 @@ def create_app():
         else:
             app.logger.error("Не удалось отправить тестовое сообщение")
 
+    @app.cli.command("scrape-cbr")
+    def scrape_cbr_command():
+        """Парсит курсы ЦБ через Playwright и синхронизирует в Grist."""
+        import asyncio
+
+        from app.integrations.cbr_scraper import scrape_cbr_rates
+        from app.integrations.grist_httpx import sync_rates_to_grist_httpx
+
+        app.logger.info("Начинаю парсинг курсов ЦБ...")
+        try:
+            rates = asyncio.run(scrape_cbr_rates())
+            if not rates:
+                app.logger.warning("Курсы не получены")
+                return
+
+            app.logger.info("Получено %d курсов", len(rates))
+            result = asyncio.run(sync_rates_to_grist_httpx(rates))
+            app.logger.info(
+                "Sync в Grist: добавлено %d, обновлено %d",
+                result.get("added", 0),
+                result.get("updated", 0),
+            )
+        except Exception as e:
+            app.logger.error("Ошибка scrape-cbr: %s", e, exc_info=True)
+
     return app
 
 
