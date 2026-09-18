@@ -24,6 +24,7 @@ from scheduler.jobs import (  # noqa: E402
     job_process_events,
     job_scrape_cbr,
     job_sync_grist,
+    job_sync_sheets,
 )
 
 logging.basicConfig(
@@ -69,6 +70,14 @@ async def _run() -> None:
         max_instances=1,
         coalesce=True,
     )
+    scheduler.add_job(
+        job_sync_sheets,
+        IntervalTrigger(hours=1),
+        args=[app],
+        id="sync_sheets",
+        max_instances=1,
+        coalesce=True,
+    )
 
     scheduler.start()
     logger.info("Scheduler started. Jobs:")
@@ -76,6 +85,7 @@ async def _run() -> None:
     logger.info("  sync_grist     — every 30 min")
     logger.info("  healthcheck    — every 6 hours (on the hour)")
     logger.info("  scrape_cbr     — every 6 hours")
+    logger.info("  sync_sheets    — every 1 hour")
 
     try:
         await asyncio.Event().wait()  # ждём вечно

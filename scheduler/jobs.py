@@ -3,6 +3,7 @@
 Все job'ы — async-функции, принимают Flask-app как первый аргумент.
 """
 
+import asyncio
 import logging
 import traceback as tb_module
 from datetime import UTC, datetime
@@ -225,6 +226,49 @@ async def job_scrape_cbr(app) -> None:
                     event_type="error",
                     payload={
                         "task_name": "job_scrape_cbr",
+                        "error_type": type(e).__name__,
+                        "error_message": str(e),
+                        "traceback": tb_module.format_exc()[-1500:],
+                    },
+                    status="pending",
+                )
+            )
+            db.session.commit()
+
+
+# ============================================================
+#   JOB: sync_sheets
+# ============================================================
+
+
+async def job_sync_sheets(app) -> None:
+    """Раз в час: экспорт проектов и транзакций в Google Sheets."""
+    with app.app_context():
+        from app.integrations.google_sheets import sync_all_to_sheets
+        from app.models import Project, Transaction
+
+        try:
+            projects = Project.query.all()
+            transactions = (
+                Transaction.query.options(joinedload(Transaction.project))
+                .order_by(Transaction.date.desc())
+                .all()
+            )
+            # gspread синхронный — уводим в отдельный поток
+            result = await asyncio.to_thread(sync_all_to_sheets, projects, transactions)
+            logger.info(
+                "job_sync_sheets: %d проектов, %d транзакций",
+                result["projects"],
+                result["transactions"],
+            )
+        except Exception as e:
+            logger.exception("job_sync_sheets failed")
+            db.session.rollback()
+            db.session.add(
+                EventLog(
+                    event_type="error",
+                    payload={
+                        "task_name": "job_sync_sheets",
                         "error_type": type(e).__name__,
                         "error_message": str(e),
                         "traceback": tb_module.format_exc()[-1500:],
