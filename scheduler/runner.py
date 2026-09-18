@@ -19,7 +19,12 @@ from apscheduler.triggers.interval import IntervalTrigger
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app import create_app  # noqa: E402
-from scheduler.jobs import job_healthcheck, job_process_events, job_sync_grist  # noqa: E402
+from scheduler.jobs import (  # noqa: E402
+    job_healthcheck,
+    job_process_events,
+    job_scrape_cbr,
+    job_sync_grist,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -56,12 +61,21 @@ async def _run() -> None:
         max_instances=1,
         coalesce=True,
     )
+    scheduler.add_job(
+        job_scrape_cbr,
+        IntervalTrigger(hours=6),
+        args=[app],
+        id="scrape_cbr",
+        max_instances=1,
+        coalesce=True,
+    )
 
     scheduler.start()
     logger.info("Scheduler started. Jobs:")
     logger.info("  process_events — every 30 sec")
     logger.info("  sync_grist     — every 30 min")
     logger.info("  healthcheck    — every 6 hours (on the hour)")
+    logger.info("  scrape_cbr     — every 6 hours")
 
     try:
         await asyncio.Event().wait()  # ждём вечно
