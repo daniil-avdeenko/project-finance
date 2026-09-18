@@ -7,8 +7,15 @@ import pytest
 import respx
 
 from app import db as _db
+from app.integrations.cbr_scraper import ScrapedRate  # noqa: F401
 from app.models import EventLog, Project
-from scheduler.jobs import _format_digest, job_healthcheck, job_process_events, job_sync_grist
+from scheduler.jobs import (
+    _format_digest,
+    job_healthcheck,
+    job_process_events,
+    job_scrape_cbr,
+    job_sync_grist,
+)
 
 SEND_URL = "https://api.telegram.org/bottest-token-123/sendMessage"
 
@@ -219,3 +226,65 @@ async def test_healthcheck_sends_message(app):
 
     body = json.loads(route.calls.last.request.content)
     assert "Планировщик работает исправно" in body["text"]
+
+
+# ---------- job_scrape_cbr ----------
+
+
+async def test_scrape_cbr_job_success(app):
+    """Успешный парсинг → вызов sync_rates_to_grist_httpx, без error-события."""
+    fake_rates = ["rate1", "rate2", "rate3"]  # не важно что, мок принимает list
+
+    with (
+        patch(
+            "app.integrations.cbr_scraper.scrape_cbr_rates",
+            new=AsyncMock(return_value=fake_rates),
+        ),
+        patch(
+            "app.integrations.grist_httpx.sync_rates_to_grist_httpx",
+            new=AsyncMock(return_value={"added": 3, "updated": 0}),
+        ) as sync_mock,
+    ):
+        await job_scrape_cbr(app)
+
+    assert sync_mock.called
+    assert sync_mock.call_args[0][0] == fake_rates
+
+    with app.app_context():
+        assert EventLog.query.filter_by(event_type="error").count() == 0
+
+
+async def test_scrape_cbr_job_empty_result_does_not_sync(app):
+    """Пустой парсинг → sync не вызывается, ошибки нет."""
+    with (
+        patch(
+            "app.integrations.cbr_scraper.scrape_cbr_rates",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "app.integrations.grist_httpx.sync_rates_to_grist_httpx",
+            new=AsyncMock(),
+        ) as sync_mock,
+    ):
+        await job_scrape_cbr(app)
+
+    assert not sync_mock.called
+
+    with app.app_context():
+        assert EventLog.query.filter_by(event_type="error").count() == 0
+
+
+async def test_scrape_cbr_job_creates_error_event_on_failure(app):
+    """Исключение в парсинге → error-событие в event_log."""
+    with patch(
+        "app.integrations.cbr_scraper.scrape_cbr_rates",
+        new=AsyncMock(side_effect=RuntimeError("CBR unreachable")),
+    ):
+        await job_scrape_cbr(app)
+
+    with app.app_context():
+        events = EventLog.query.filter_by(event_type="error").all()
+        assert len(events) == 1
+        assert events[0].payload["task_name"] == "job_scrape_cbr"
+        assert events[0].payload["error_type"] == "RuntimeError"
+        assert "CBR unreachable" in events[0].payload["error_message"]
