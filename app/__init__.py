@@ -137,8 +137,6 @@ def create_app():
     @app.cli.command("send-test-message")
     def send_test_message_command():
         """Отправляет тестовое сообщение в Telegram для проверки настроек."""
-        import asyncio
-
         from app.integrations.telegram import send_message
 
         text = (
@@ -156,8 +154,6 @@ def create_app():
     @app.cli.command("scrape-cbr")
     def scrape_cbr_command():
         """Парсит курсы ЦБ через Playwright и синхронизирует в Grist."""
-        import asyncio
-
         from app.integrations.cbr_scraper import scrape_cbr_rates
         from app.integrations.grist_httpx import sync_rates_to_grist_httpx
 
@@ -177,6 +173,29 @@ def create_app():
             )
         except Exception as e:
             app.logger.error("Ошибка scrape-cbr: %s", e, exc_info=True)
+
+    @app.cli.command("sync-sheets")
+    def sync_sheets_command():
+        """Синхронизирует проекты и транзакции в Google Sheets."""
+        from app.integrations.google_sheets import sync_all_to_sheets
+        from app.models import Project, Transaction
+
+        app.logger.info("Начинаю синхронизацию с Google Sheets...")
+        try:
+            projects = Project.query.all()
+            transactions = (
+                Transaction.query.options(joinedload(Transaction.project))
+                .order_by(Transaction.date.desc())
+                .all()
+            )
+            result = sync_all_to_sheets(projects, transactions)
+            app.logger.info(
+                "Google Sheets: %d проектов, %d транзакций",
+                result["projects"],
+                result["transactions"],
+            )
+        except Exception as e:
+            app.logger.error("Ошибка sync-sheets: %s", e, exc_info=True)
 
     return app
 
