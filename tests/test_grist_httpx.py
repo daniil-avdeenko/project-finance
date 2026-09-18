@@ -2,6 +2,7 @@
 
 import json
 from datetime import UTC, datetime
+from datetime import date as date_cls
 
 import httpx
 import pytest
@@ -10,6 +11,7 @@ import respx
 from app.integrations.grist_httpx import (
     GristClient,
     sync_projects_to_grist_httpx,
+    sync_rates_to_grist_httpx,
     sync_transactions_to_grist_httpx,
 )
 
@@ -276,3 +278,58 @@ async def test_sync_projects_requires_doc_id(monkeypatch):
 
     with pytest.raises(ValueError, match="GRIST_DOC_ID"):
         await sync_projects_to_grist_httpx([])
+
+
+# ============================================================
+#   sync_rates_to_grist_httpx
+# ============================================================
+
+
+@pytest.fixture
+def fake_rate():
+    """Минимальный ScrapedRate-подобный объект."""
+
+    class FakeRate:
+        code = "USD"
+        nominal = 1
+        rate = 84.5093
+        rate_date = date_cls(2026, 9, 18)
+
+    return FakeRate()
+
+
+@respx.mock
+async def test_sync_rates_sends_correct_payload(monkeypatch, fake_rate):
+    """Проверяем формирование полей курса."""
+    monkeypatch.setenv("GRIST_API_KEY", "test-key")
+    monkeypatch.setenv("GRIST_DOC_ID", "test-doc")
+
+    route = respx.put(
+        "https://docs.getgrist.com/api/docs/test-doc/tables/ExchangeRates/records"
+    ).mock(return_value=httpx.Response(200, json={"addRecordIds": [1]}))
+
+    await sync_rates_to_grist_httpx([fake_rate])
+
+    body = json.loads(route.calls.last.request.content)
+    record = body["records"][0]
+
+    assert record["require"] == {"ID2": "USD"}
+    assert record["fields"]["A"] == "2026-09-18"
+    assert record["fields"]["B"] == "USD"
+    assert record["fields"]["C"] == 1
+    assert record["fields"]["D"] == 84.5093
+
+
+@respx.mock
+async def test_sync_rates_skips_empty_list(monkeypatch):
+    """Пустой список — запрос не делается."""
+    monkeypatch.setenv("GRIST_API_KEY", "test-key")
+    monkeypatch.setenv("GRIST_DOC_ID", "test-doc")
+
+    route = respx.put("https://docs.grist.com/api/docs/test-doc/tables/ExchangeRates/records").mock(
+        return_value=httpx.Response(200, json={"addRecordIds": []})
+    )
+
+    await sync_rates_to_grist_httpx([])
+
+    assert not route.called
