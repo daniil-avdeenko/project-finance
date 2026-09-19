@@ -40,7 +40,19 @@ def create_app():
     app = Flask(__name__)
 
     # Конфигурация
-    app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-key-for-testing")
+    flask_env = os.getenv("FLASK_ENV", "development")
+    secret_key = os.getenv("SECRET_KEY")
+
+    if not secret_key:
+        if flask_env == "production":
+            raise RuntimeError(
+                "SECRET_KEY не установлен. В production это обязательно — "
+                "иначе сессии можно подделать."
+            )
+        secret_key = "dev-key-for-testing"
+        app.logger.warning("SECRET_KEY не установлен, используется dev-значение")
+
+    app.config["SECRET_KEY"] = secret_key
 
     database_url = os.getenv("DATABASE_URL")
 
