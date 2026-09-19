@@ -4,7 +4,25 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="fas fa-chart-pie me-2"></i>Дашборд</h1>
+    <div class="d-flex align-items-center gap-3">
+        <h1 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Дашборд</h1>
+
+        {% if usd_rate or eur_rate %}
+        <div class="d-flex align-items-center gap-3 text-muted small border-start ps-3">
+            {% if usd_rate %}
+            <span title="Курс ЦБ на {{ usd_rate.rate_date }}">
+                <i class="fas fa-dollar-sign me-1"></i>{{ usd_rate.rate_rub|money }} ₽
+            </span>
+            {% endif %}
+            {% if eur_rate %}
+            <span title="Курс ЦБ на {{ eur_rate.rate_date }}">
+                <i class="fas fa-euro-sign me-1"></i>{{ eur_rate.rate_rub|money }} ₽
+            </span>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
     <div class="d-flex align-items-center gap-2">
         <!-- Форма выбора месяца/периода -->
         <form method="get" action="{{ url_for('main.index') }}" class="d-flex align-items-center gap-2">

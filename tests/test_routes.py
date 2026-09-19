@@ -750,7 +750,7 @@ def test_export_transactions_csv_includes_amount_rub(auth_client, app):
 
 
 # ============================================================
-#   КОНВЕРТАЦИЯ ВАЛЮТ
+#   КОНВЕРТАЦИЯ И КУРС ВАЛЮТ
 # ============================================================
 
 
@@ -789,4 +789,31 @@ def test_dashboard_converts_usd_to_rub(auth_client, app):
 
     # 100 USD * 84.50 = 8450 RUB — money-фильтр выводит "8 450.00"
     assert "8 450.00" in text
-    assert "84.50" not in text  # исходная сумма в USD не просочилась
+
+
+def test_dashboard_shows_currency_rates(auth_client, app):
+    """Дашборд показывает актуальные курсы USD и EUR из БД."""
+    from datetime import date
+
+    from app.services.currency_service import upsert_rates
+
+    class FakeRate:
+        def __init__(self, code, nominal, rate, rate_date):
+            self.code = code
+            self.nominal = nominal
+            self.rate = rate
+            self.rate_date = rate_date
+
+    with app.app_context():
+        upsert_rates(
+            [
+                FakeRate("USD", 1, 84.50, date(2026, 9, 19)),
+                FakeRate("EUR", 1, 97.30, date(2026, 9, 19)),
+            ]
+        )
+
+    response = auth_client.get("/")
+    text = response.get_data(as_text=True)
+
+    assert "84.50" in text or "84,50" in text or "84 500" in text
+    assert "97.30" in text or "97,30" in text
