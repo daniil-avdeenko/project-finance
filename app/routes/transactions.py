@@ -217,7 +217,19 @@ def export_transactions_csv():
 
     si = StringIO()
     writer = csv.writer(si, delimiter=";", quoting=csv.QUOTE_MINIMAL)
-    writer.writerow(["ID", "Дата", "Проект", "Тип", "Категория", "Сумма", "Валюта", "Описание"])
+    writer.writerow(
+        [
+            "ID",
+            "Дата",
+            "Проект",
+            "Тип",
+            "Категория",
+            "Сумма",
+            "Валюта",
+            "Сумма (RUB)",
+            "Описание",
+        ]
+    )
 
     for t in transactions:
         category_name = (
@@ -235,6 +247,7 @@ def export_transactions_csv():
                 category_name,
                 round(t.amount, 2),
                 t.currency or "RUB",
+                t.amount_rub,
                 t.description or "",
             ]
         )
