@@ -152,3 +152,29 @@ class EventLog(db.Model):
 
     def __repr__(self) -> str:
         return f"<EventLog {self.event_type} status={self.status}>"
+
+
+class CurrencyRate(db.Model):
+    """
+    Курс валюты ЦБ РФ на конкретную дату.
+
+    code — буквенный код (USD, EUR, ...).
+    nominal — за сколько единиц указан курс (обычно 1, но JPY — 100, VND — 10000).
+    rate_rub — курс в рублях за nominal единиц.
+
+    Уникальность (code, rate_date) — на одну дату один курс.
+    Используется для конвертации транзакций в рубли.
+    """
+
+    __tablename__ = "currency_rates"
+
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(10), nullable=False, index=True)
+    rate_date = db.Column(db.Date, nullable=False, index=True)
+    nominal = db.Column(db.Integer, nullable=False, default=1)
+    rate_rub = db.Column(db.Float, nullable=False)
+
+    __table_args__ = (db.UniqueConstraint("code", "rate_date", name="uq_currency_rate_code_date"),)
+
+    def __repr__(self) -> str:
+        return f"<CurrencyRate {self.code} {self.rate_date}={self.rate_rub}>"
