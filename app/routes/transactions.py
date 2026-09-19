@@ -25,20 +25,30 @@ def set_category_choices(form, type_filter):
 
 def _validate_transaction_date(form, project) -> str | None:
     """
-    Проверяет дату транзакции.
+    Проверяет дату и время транзакции.
 
     Возвращает текст ошибки или None, если всё ок.
     """
     if not form.date.data:
         return None
 
-    project_start = project.created_at.date() if project.created_at else None
-    if project_start and form.date.data < project_start:
-        return f"Дата не может быть раньше создания проекта ({project_start})"
+    tx_dt = form.date.data
+    if tx_dt.tzinfo is None:
+        tx_dt = tx_dt.replace(tzinfo=UTC)
 
-    tomorrow = datetime.now(UTC).date() + timedelta(days=1)
-    if form.date.data > tomorrow:
-        return "Дата не может быть в будущем"
+    project_start = project.created_at
+    if project_start and project_start.tzinfo is None:
+        project_start = project_start.replace(tzinfo=UTC)
+
+    if project_start and tx_dt < project_start:
+        return (
+            f"Дата и время не могут быть раньше создания проекта "
+            f"({project_start.strftime('%Y-%m-%d %H:%M')})"
+        )
+
+    tomorrow = datetime.now(UTC) + timedelta(days=1)
+    if tx_dt > tomorrow:
+        return "Дата и время не могут быть в будущем"
 
     return None
 
@@ -140,6 +150,12 @@ def transaction_create():
                     expense_categories=ExpenseCategory.query.all(),
                 )
 
+            tx_date = form.date.data
+            if tx_date is None:
+                tx_date = datetime.now(UTC)
+            elif tx_date.tzinfo is None:
+                tx_date = tx_date.replace(tzinfo=UTC)
+
             transaction = Transaction(
                 project_id=form.project_id.data,
                 type=form.type.data,
@@ -147,7 +163,7 @@ def transaction_create():
                 amount=form.amount.data,
                 currency=form.currency.data,
                 description=form.description.data,
-                date=form.date.data or datetime.now(UTC),
+                date=tx_date,
             )
             try:
                 db.session.add(transaction)
@@ -189,7 +205,7 @@ def transaction_edit(transaction_id):
         form.amount.data = str(transaction.amount)
         form.currency.data = transaction.currency or "RUB"
         form.description.data = transaction.description or ""
-        form.date.data = transaction.date.date() if transaction.date is not None else None
+        form.date.data = transaction.date
 
         set_category_choices(form, transaction.type)
 
@@ -221,7 +237,10 @@ def transaction_edit(transaction_id):
             transaction.currency = form.currency.data
             transaction.description = form.description.data
             if form.date.data:
-                transaction.date = form.date.data
+                tx_dt = form.date.data
+                if tx_dt.tzinfo is None:
+                    tx_dt = tx_dt.replace(tzinfo=UTC)
+                transaction.date = tx_dt
             try:
                 db.session.commit()
                 flash("Транзакция обновлена", "success")

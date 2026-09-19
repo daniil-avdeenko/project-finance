@@ -2,7 +2,7 @@
 Тесты маршрутов: доступ, CRUD, фильтры, экспорт.
 """
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from app import db as _db
 from app.models import Employee, ExpenseCategory, IncomeCategory, Project, Transaction
@@ -242,8 +242,6 @@ def test_delete_employee(auth_client, app):
 
 def test_edit_transaction(auth_client, app):
     """Редактирование транзакции меняет сумму и описание."""
-    from datetime import UTC, datetime, timedelta
-
     with app.app_context():
         project = Project(
             name="Проект",
@@ -275,7 +273,7 @@ def test_edit_transaction(auth_client, app):
             "amount": "5000",
             "currency": "RUB",
             "description": "Новое описание",
-            "date": "2026-09-12",
+            "date": "2026-09-12T14:30",
         },
         follow_redirects=True,
     )
@@ -314,8 +312,6 @@ def test_delete_transaction(auth_client, app):
 
 def test_deleted_transaction_not_in_totals(auth_client, app):
     """Удалённая транзакция не учитывается в прибыли проекта."""
-    from datetime import UTC, datetime
-
     with app.app_context():
         project = Project(name="P")
         inc = IncomeCategory(name="I")
@@ -572,8 +568,6 @@ def test_transactions_filter_by_date(auth_client, app):
 
 def test_transactions_filter_by_currency(auth_client, app):
     """Фильтр по валюте оставляет только выбранную."""
-    from datetime import UTC, datetime
-
     with app.app_context():
         project = Project(name="P")
         cat = IncomeCategory(name="I")
@@ -613,8 +607,6 @@ def test_transactions_filter_by_currency(auth_client, app):
 
 def test_transactions_filter_by_project(auth_client, app):
     """Фильтр по проекту оставляет только транзакции этого проекта."""
-    from datetime import UTC, datetime
-
     with app.app_context():
         p1 = Project(name="Проект-А")
         p2 = Project(name="Проект-Б")
@@ -655,18 +647,17 @@ def test_transactions_filter_by_project(auth_client, app):
 
 
 def test_transaction_create_rejects_future_date(auth_client, app):
-    """Дата транзакции не может быть в будущем."""
-    from datetime import datetime, timedelta, timezone
-
+    """Дата и время транзакции не могут быть в будущем."""
     with app.app_context():
-        project = Project(name="P")
+        start = datetime.now(UTC) - timedelta(days=30)
+        project = Project(name="P", created_at=start)
         cat = IncomeCategory(name="Доход")
         _db.session.add_all([project, cat])
         _db.session.commit()
         p_id = project.id
         c_id = cat.id
 
-    future_date = (datetime.now(UTC) + timedelta(days=30)).strftime("%Y-%m-%d")
+    future_date = (datetime.now(UTC) + timedelta(days=30)).strftime("%Y-%m-%dT%H:%M")
 
     auth_client.post(
         "/transactions/create",
@@ -687,9 +678,7 @@ def test_transaction_create_rejects_future_date(auth_client, app):
 
 
 def test_transaction_create_rejects_date_before_project(auth_client, app):
-    """Дата транзакции не может быть раньше создания проекта."""
-    from datetime import datetime, timedelta, timezone
-
+    """Дата и время транзакции не могут быть раньше создания проекта."""
     with app.app_context():
         old_date = datetime.now(UTC) - timedelta(days=30)
         project = Project(name="P", created_at=old_date)
@@ -699,7 +688,7 @@ def test_transaction_create_rejects_date_before_project(auth_client, app):
         p_id = project.id
         c_id = cat.id
 
-    earlier = (old_date - timedelta(days=30)).strftime("%Y-%m-%d")
+    earlier = (old_date - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M")
 
     auth_client.post(
         "/transactions/create",
@@ -720,9 +709,7 @@ def test_transaction_create_rejects_date_before_project(auth_client, app):
 
 
 def test_transaction_create_accepts_valid_date(auth_client, app):
-    """Корректная дата (в пределах жизни проекта) — проходит."""
-    from datetime import datetime, timedelta, timezone
-
+    """Корректные дата и время (в пределах жизни проекта) — проходят."""
     with app.app_context():
         start = datetime.now(UTC) - timedelta(days=30)
         project = Project(name="P", created_at=start)
@@ -732,7 +719,7 @@ def test_transaction_create_accepts_valid_date(auth_client, app):
         p_id = project.id
         c_id = cat.id
 
-    valid_date = (datetime.now(UTC) - timedelta(days=5)).strftime("%Y-%m-%d")
+    valid_date = (datetime.now(UTC) - timedelta(days=5)).strftime("%Y-%m-%dT%H:%M")
 
     auth_client.post(
         "/transactions/create",
@@ -781,9 +768,6 @@ def test_export_transactions_csv(auth_client):
 
 def test_export_transactions_csv_includes_amount_rub(auth_client, app):
     """CSV-экспорт транзакций содержит колонку Сумма (RUB) в правильной позиции."""
-    from datetime import UTC, date, datetime
-
-    from app.services.currency_service import upsert_rates
 
     class FakeRate:
         def __init__(self, code, nominal, rate, rate_date):
@@ -877,9 +861,6 @@ def test_dashboard_converts_usd_to_rub(auth_client, app):
 
 def test_dashboard_shows_currency_rates(auth_client, app):
     """Дашборд показывает актуальные курсы USD и EUR из БД."""
-    from datetime import date
-
-    from app.services.currency_service import upsert_rates
 
     class FakeRate:
         def __init__(self, code, nominal, rate, rate_date):

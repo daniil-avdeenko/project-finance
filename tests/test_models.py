@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from wtforms.validators import ValidationError
@@ -47,8 +47,6 @@ def test_create_transaction_directly(app):
 
 def test_create_transaction_via_route(auth_client, app):
     """Проверяем создание транзакции через POST-запрос."""
-    from datetime import UTC, datetime, timedelta
-
     with app.app_context():
         # Проект создан в прошлом, чтобы дата транзакции прошла валидацию
         project = Project(
@@ -72,7 +70,7 @@ def test_create_transaction_via_route(auth_client, app):
             "amount": "50000",
             "currency": "RUB",
             "description": "Тестовая транзакция",
-            "date": "2026-09-12",
+            "date": "2026-09-12T14:30",
         },
         follow_redirects=True,
     )
