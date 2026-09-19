@@ -1,5 +1,5 @@
 import csv
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from io import StringIO
 
 from flask import flash, redirect, render_template, request, url_for
@@ -21,6 +21,26 @@ def set_category_choices(form, type_filter):
         form.category_id.choices = [(c.id, c.name) for c in ExpenseCategory.query.all()]
     else:
         form.category_id.choices = []
+
+
+def _validate_transaction_date(form, project) -> str | None:
+    """
+    Проверяет дату транзакции.
+
+    Возвращает текст ошибки или None, если всё ок.
+    """
+    if not form.date.data:
+        return None
+
+    project_start = project.created_at.date() if project.created_at else None
+    if project_start and form.date.data < project_start:
+        return f"Дата не может быть раньше создания проекта ({project_start})"
+
+    tomorrow = datetime.now(UTC).date() + timedelta(days=1)
+    if form.date.data > tomorrow:
+        return "Дата не может быть в будущем"
+
+    return None
 
 
 @main_bp.route("/transactions")
@@ -90,16 +110,20 @@ def transaction_create():
         set_category_choices(form, t)
 
         if form.validate_on_submit():
-            if form.type.data == "income":
-                category = db.session.get(IncomeCategory, form.category_id.data)
-                if not category:
-                    flash("Выбрана неверная категория дохода", "danger")
-                    return redirect(url_for("main.transaction_create"))
-            else:
-                category = db.session.get(ExpenseCategory, form.category_id.data)
-                if not category:
-                    flash("Выбрана неверная категория расхода", "danger")
-                    return redirect(url_for("main.transaction_create"))
+            project = db.session.get(Project, form.project_id.data)
+            if not project:
+                flash("Проект не найден", "danger")
+                return redirect(url_for("main.transaction_create"))
+
+            date_error = _validate_transaction_date(form, project)
+            if date_error:
+                flash(date_error, "danger")
+                return render_template(
+                    "transactions/create.html",
+                    form=form,
+                    income_categories=IncomeCategory.query.all(),
+                    expense_categories=ExpenseCategory.query.all(),
+                )
 
             transaction = Transaction(
                 project_id=form.project_id.data,
@@ -158,6 +182,22 @@ def transaction_edit(transaction_id):
         set_category_choices(form, t)
 
         if form.validate_on_submit():
+            project = db.session.get(Project, form.project_id.data)
+            if not project:
+                flash("Проект не найден", "danger")
+                return redirect(url_for("main.transaction_edit", transaction_id=transaction_id))
+
+            date_error = _validate_transaction_date(form, project)
+            if date_error:
+                flash(date_error, "danger")
+                return render_template(
+                    "transactions/edit.html",
+                    form=form,
+                    transaction=transaction,
+                    income_categories=IncomeCategory.query.all(),
+                    expense_categories=ExpenseCategory.query.all(),
+                )
+
             transaction.type = form.type.data
             transaction.project_id = form.project_id.data
             transaction.category_id = form.category_id.data

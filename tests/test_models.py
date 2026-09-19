@@ -47,9 +47,14 @@ def test_create_transaction_directly(app):
 
 def test_create_transaction_via_route(auth_client, app):
     """Проверяем создание транзакции через POST-запрос."""
+    from datetime import UTC, datetime, timedelta
+
     with app.app_context():
-        # Создаём проект и категорию
-        project = Project(name="Проект")
+        # Проект создан в прошлом, чтобы дата транзакции прошла валидацию
+        project = Project(
+            name="Проект",
+            created_at=datetime.now(UTC) - timedelta(days=30),
+        )
         category = IncomeCategory(name="Доход")
         _db.session.add_all([project, category])
         _db.session.commit()
