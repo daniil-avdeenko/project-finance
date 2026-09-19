@@ -2,8 +2,11 @@
 Тесты маршрутов: доступ, CRUD, фильтры, экспорт.
 """
 
+from datetime import UTC, date, datetime
+
 from app import db as _db
 from app.models import Employee, ExpenseCategory, IncomeCategory, Project, Transaction
+from app.services.currency_service import upsert_rates
 
 # ============================================================
 #   ОБЩИЕ СТРАНИЦЫ И ДОСТУП
@@ -528,3 +531,46 @@ def test_export_transactions_csv(auth_client):
     response = auth_client.get("/transactions/export")
     assert response.status_code == 200
     assert response.mimetype == "text/csv"
+
+
+# ============================================================
+#   КОНВЕРТАЦИЯ ВАЛЮТ
+# ============================================================
+
+
+def test_dashboard_converts_usd_to_rub(auth_client, app):
+    """Дашборд считает доход в рублях при USD-транзакции."""
+
+    class FakeRate:
+        def __init__(self, code, nominal, rate, rate_date):
+            self.code = code
+            self.nominal = nominal
+            self.rate = rate
+            self.rate_date = rate_date
+
+    with app.app_context():
+        upsert_rates([FakeRate("USD", 1, 84.50, date(2026, 9, 19))])
+
+        project = Project(name="P")
+        cat = IncomeCategory(name="C")
+        _db.session.add_all([project, cat])
+        _db.session.commit()
+
+        _db.session.add(
+            Transaction(
+                project_id=project.id,
+                type="income",
+                category_id=cat.id,
+                amount=100,
+                currency="USD",
+                date=datetime(2026, 9, 19, 12, 0, tzinfo=UTC),
+            )
+        )
+        _db.session.commit()
+
+    response = auth_client.get("/")
+    text = response.get_data(as_text=True)
+
+    # 100 USD * 84.50 = 8450 RUB — money-фильтр выводит "8 450.00"
+    assert "8 450.00" in text
+    assert "84.50" not in text  # исходная сумма в USD не просочилась
