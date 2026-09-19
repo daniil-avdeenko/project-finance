@@ -32,12 +32,16 @@ def fake_transaction():
 
     class FakeTransaction:
         id = 42
-        date = None  # проверим ветку без даты
+        date = None
         project = FakeProject()
         type = "income"
-        amount = 5000.0
+        amount = 100.0
         currency = "USD"
         description = "Оплата"
+
+        @property
+        def amount_rub(self):
+            return 8450.0
 
     return FakeTransaction()
 
@@ -190,6 +194,7 @@ def test_sync_transactions_empty_date(_fmt, _val, mock_worksheet, fake_transacti
     assert row[1] == ""  # date → ""
     assert row[3] == "income"
     assert row[5] == "USD"
+    assert row[6] == 8450.0
 
 
 # ============================================================
@@ -215,3 +220,26 @@ def test_sync_all_calls_both(mock_spreadsheet, mock_ensure, mock_projects, mock_
     assert result == {"projects": 6, "transactions": 386}
     mock_projects.assert_called_once()
     mock_transactions.assert_called_once()
+
+
+# ============================================================
+#   apply_number_format_formats_amount_columns
+# ============================================================
+
+
+@patch("app.integrations.google_sheets.format_cell_range")
+def test_apply_number_format_formats_amount_columns(mock_format, mock_worksheet):
+    """apply_number_format форматирует колонки E и G числовым паттерном."""
+    gs.apply_number_format(mock_worksheet)
+
+    assert mock_format.call_count == 2
+
+    ranges = [call.args[1] for call in mock_format.call_args_list]
+    assert "E2:E1000" in ranges
+    assert "G2:G1000" in ranges
+
+    # Проверяем сам формат
+    for call in mock_format.call_args_list:
+        fmt = call.args[2]
+        assert fmt.numberFormat.type == "NUMBER"
+        assert fmt.numberFormat.pattern == "#,##0.00"
