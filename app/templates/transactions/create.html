@@ -45,7 +45,7 @@
 
     <div class="mb-3">
         {{ form.date.label(class="form-label") }}
-        {{ form.date(class="form-control", type="date") }}
+        {{ form.date(class="form-control", type="datetime-local") }}
     </div>
 
     <button type="submit" class="btn btn-success">💾 Сохранить</button>
@@ -53,7 +53,7 @@
 </form>
 
 <script>
-    // Данные для категорий
+    // ===== КАТЕГОРИИ ЗАВИСЯТ ОТ ТИПА =====
     const incomeCategories = [
         {% for cat in income_categories %}
             { id: {{ cat.id }}, name: "{{ cat.name }}" },
@@ -91,50 +91,95 @@
     document.getElementById('transaction_type').addEventListener('change', updateCategories);
     window.onload = updateCategories;
 
-    // === ФОРМАТИРОВАНИЕ СУММЫ ===
+
+    // ===== ФОРМАТИРОВАНИЕ СУММЫ С СОХРАНЕНИЕМ ПОЗИЦИИ КУРСОРА =====
     const amountInput = document.getElementById('amount_input');
 
-    function formatNumber(value) {
-        // Убираем всё, кроме цифр и точки
-        let clean = value.replace(/[^0-9.]/g, '');
-        // Оставляем только одну точку
+    function countSignificant(str, upto) {
+        let count = 0;
+        for (let i = 0; i < upto && i < str.length; i++) {
+            if (/[0-9.,]/.test(str[i])) count++;
+        }
+        return count;
+    }
+
+    function positionBySignificantCount(str, count) {
+        if (count <= 0) return 0;
+        let seen = 0;
+        for (let i = 0; i < str.length; i++) {
+            if (/[0-9.,]/.test(str[i])) {
+                seen++;
+                if (seen >= count) return i + 1;
+            }
+        }
+        return str.length;
+    }
+
+    function formatNumber(value, padDecimals) {
+        // Принимаем и точку, и запятую — нормализуем к точке
+        let clean = value.replace(/,/g, '.').replace(/[^0-9.]/g, '');
         let parts = clean.split('.');
+        // Если больше одной точки — оставляем только первую
         if (parts.length > 2) {
             parts = [parts[0], parts.slice(1).join('')];
         }
         let integer = parts[0] || '0';
-        let decimal = parts.length > 1 ? parts[1].slice(0, 2) : '';
-        // Форматируем целую часть с пробелами
+        // Убираем ведущие нули: "0123" → "123", но "0" остаётся "0"
+        integer = integer.replace(/^0+/, '') || '0';
         let formattedInteger = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-        if (decimal) {
-            return formattedInteger + '.' + decimal.padEnd(2, '0');
+
+        // Если была точка (даже без цифр после) — сохраняем её,
+        // чтобы пользователь мог продолжить ввод копеек
+        if (parts.length > 1) {
+            let decimal = parts[1].slice(0, 2);
+            if (padDecimals) {
+                decimal = decimal.padEnd(2, '0');
+            }
+            return formattedInteger + '.' + decimal;
         }
         return formattedInteger;
     }
 
-    amountInput.addEventListener('input', function(e) {
-        let cursorPos = this.selectionStart;
-        let raw = this.value;
-        // Если ввели точку или запятую, оставляем как есть для ввода
-        // Но после ввода сразу форматируем
-        let formatted = formatNumber(raw);
-        if (formatted !== raw) {
+    amountInput.addEventListener('input', function () {
+        const oldValue = this.value;
+        const oldCursor = this.selectionStart;
+
+        if (oldCursor === oldValue.length) {
+            const formatted = formatNumber(oldValue, false);
+            if (formatted !== oldValue) {
+                this.value = formatted;
+                this.setSelectionRange(formatted.length, formatted.length);
+            }
+            return;
+        }
+
+        const sigBefore = countSignificant(oldValue, oldCursor);
+        const formatted = formatNumber(oldValue, false);
+
+        if (formatted !== oldValue) {
             this.value = formatted;
-            // Ставим курсор в конец
-            this.selectionStart = this.selectionEnd = this.value.length;
+            const newCursor = positionBySignificantCount(formatted, sigBefore);
+            this.setSelectionRange(newCursor, newCursor);
         }
     });
 
-    // При потере фокуса доводим до двух знаков после запятой
-    amountInput.addEventListener('blur', function() {
-        let raw = this.value;
-        if (!raw) return;
-        // Убираем пробелы, парсим число
-        let clean = raw.replace(/\s/g, '');
-        let num = parseFloat(clean);
-        if (!isNaN(num)) {
-            this.value = formatNumber(num.toFixed(2));
+    // Исправление: при клике правее текста каретка иногда встаёт в начало.
+    amountInput.addEventListener('mouseup', function (e) {
+        if (this.selectionStart !== 0 || this.selectionEnd !== 0) return;
+        if (!this.value) return;
+        const rect = this.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        if (clickX > rect.width / 2) {
+            const len = this.value.length;
+            this.setSelectionRange(len, len);
         }
+    });
+
+    // При потере фокуса — приводим к виду "123.45" (обязательно 2 знака)
+    amountInput.addEventListener('blur', function () {
+        const raw = this.value;
+        if (!raw) return;
+        this.value = formatNumber(raw, true);
     });
 </script>
 {% endblock %}
