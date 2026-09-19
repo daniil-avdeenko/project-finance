@@ -139,9 +139,10 @@ async def job_sync_grist(app) -> None:
         )
 
         try:
-            projects = Project.query.all()
+            projects = Project.active().all()
             transactions = (
-                Transaction.query.options(joinedload(Transaction.project))
+                Transaction.active()
+                .options(joinedload(Transaction.project))
                 .order_by(Transaction.date.desc())
                 .all()
             )
@@ -258,9 +259,10 @@ async def job_sync_sheets(app) -> None:
         from app.models import Project, Transaction
 
         try:
-            projects = Project.query.all()
+            projects = Project.active().all()
             transactions = (
-                Transaction.query.options(joinedload(Transaction.project))
+                Transaction.active()
+                .options(joinedload(Transaction.project))
                 .order_by(Transaction.date.desc())
                 .all()
             )

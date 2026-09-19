@@ -55,7 +55,7 @@ def transactions_list():
     date_to = request.args.get("date_to")
     type_filter = request.args.get("type")
 
-    query = Transaction.query
+    query = Transaction.active()
 
     if date_from:
         try:
@@ -103,7 +103,7 @@ def transaction_create():
     Создание новой транзакции (доступно всем авторизованным пользователям).
     """
     form = TransactionForm()
-    form.project_id.choices = [(p.id, p.name) for p in Project.query.all()]
+    form.project_id.choices = [(p.id, p.name) for p in Project.active().all()]
 
     if request.method == "POST":
         t = request.form.get("type")
@@ -161,10 +161,11 @@ def transaction_create():
 def transaction_edit(transaction_id):
     """
     Редактирование транзакции (только для админов).
+    Удалённые транзакции недоступны.
     """
-    transaction = Transaction.query.get_or_404(transaction_id)
+    transaction = Transaction.active().filter_by(id=transaction_id).first_or_404()
     form = TransactionForm(obj=transaction)
-    form.project_id.choices = [(p.id, p.name) for p in Project.query.all()]
+    form.project_id.choices = [(p.id, p.name) for p in Project.active().all()]
 
     if request.method == "GET":
         form.type.data = transaction.type
@@ -232,11 +233,11 @@ def transaction_edit(transaction_id):
 @admin_required
 def transaction_delete(transaction_id):
     """
-    Удаление транзакции (только для админов).
+    Soft delete транзакции (только для админов).
     """
     transaction = Transaction.query.get_or_404(transaction_id)
     try:
-        db.session.delete(transaction)
+        transaction.is_deleted = True
         db.session.commit()
         flash("Транзакция удалена", "warning")
     except Exception as e:
@@ -249,9 +250,9 @@ def transaction_delete(transaction_id):
 @login_required
 def export_transactions_csv():
     """
-    Экспорт всех транзакций в CSV (без учёта фильтров – можно доработать).
+    Экспорт всех активных транзакций в CSV.
     """
-    transactions = Transaction.query.order_by(Transaction.date.desc()).all()
+    transactions = Transaction.active().order_by(Transaction.date.desc()).all()
     income_categories = {c.id: c.name for c in IncomeCategory.query.all()}
     expense_categories = {c.id: c.name for c in ExpenseCategory.query.all()}
 

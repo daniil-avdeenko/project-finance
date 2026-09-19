@@ -58,11 +58,21 @@ class Project(db.Model):
 
     @property
     def total_income(self) -> float:
-        return sum(t.amount_rub for t in self.transactions if t.type == "income")
+        """Сумма доходов в рублях (без удалённых транзакций)."""
+        return sum(
+            t.amount_rub
+            for t in self.transactions.filter_by(is_deleted=False)
+            if t.type == "income"
+        )
 
     @property
     def total_expense(self) -> float:
-        return sum(t.amount_rub for t in self.transactions if t.type == "expense")
+        """Сумма расходов в рублях (без удалённых транзакций)."""
+        return sum(
+            t.amount_rub
+            for t in self.transactions.filter_by(is_deleted=False)
+            if t.type == "expense"
+        )
 
     @property
     def profit(self) -> float:
@@ -73,6 +83,11 @@ class Project(db.Model):
         if self.total_income == 0:
             return 0
         return round((self.profit / self.total_income) * 100, 2)
+
+    @classmethod
+    def active(cls):
+        """Активные проекты (не удалённые)."""
+        return cls.query.filter_by(is_deleted=False)
 
     def __repr__(self):
         return f"<Project {self.name}>"
@@ -136,6 +151,11 @@ class Transaction(db.Model):
         index=True,
     )
     date = db.Column(db.DateTime, default=datetime.now(UTC))
+
+    @classmethod
+    def active(cls):
+        """Активные транзакции (не удалённые)."""
+        return cls.query.filter_by(is_deleted=False)
 
     def __repr__(self):
         return f"<Transaction {self.type} {self.amount} {self.currency}>"
