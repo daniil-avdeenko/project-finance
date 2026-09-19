@@ -228,8 +228,13 @@ def test_delete_employee(auth_client, app):
 
 def test_edit_transaction(auth_client, app):
     """Редактирование транзакции меняет сумму и описание."""
+    from datetime import UTC, datetime, timedelta
+
     with app.app_context():
-        project = Project(name="Проект")
+        project = Project(
+            name="Проект",
+            created_at=datetime.now(UTC) - timedelta(days=30),
+        )
         category = IncomeCategory(name="Доход")
         _db.session.add_all([project, category])
         _db.session.commit()
@@ -468,7 +473,7 @@ def test_delete_expense_category(auth_client, app):
 
 
 # ============================================================
-#   ФИЛЬТРЫ ТРАНЗАКЦИЙ
+#   ТРАНЗАКЦИИ
 # ============================================================
 
 
@@ -504,6 +509,104 @@ def test_transactions_filter_by_date(auth_client, app):
     """Фильтрация транзакций по дате."""
     response = auth_client.get("/transactions?date_from=2026-01-01&date_to=2026-12-31")
     assert response.status_code == 200
+
+
+def test_transaction_create_rejects_future_date(auth_client, app):
+    """Дата транзакции не может быть в будущем."""
+    from datetime import datetime, timedelta, timezone
+
+    with app.app_context():
+        project = Project(name="P")
+        cat = IncomeCategory(name="Доход")
+        _db.session.add_all([project, cat])
+        _db.session.commit()
+        p_id = project.id
+        c_id = cat.id
+
+    future_date = (datetime.now(UTC) + timedelta(days=30)).strftime("%Y-%m-%d")
+
+    auth_client.post(
+        "/transactions/create",
+        data={
+            "type": "income",
+            "project_id": p_id,
+            "category_id": c_id,
+            "amount": "1000",
+            "currency": "RUB",
+            "description": "future",
+            "date": future_date,
+        },
+        follow_redirects=True,
+    )
+
+    with app.app_context():
+        assert Transaction.query.count() == 0
+
+
+def test_transaction_create_rejects_date_before_project(auth_client, app):
+    """Дата транзакции не может быть раньше создания проекта."""
+    from datetime import datetime, timedelta, timezone
+
+    with app.app_context():
+        old_date = datetime.now(UTC) - timedelta(days=30)
+        project = Project(name="P", created_at=old_date)
+        cat = IncomeCategory(name="Доход")
+        _db.session.add_all([project, cat])
+        _db.session.commit()
+        p_id = project.id
+        c_id = cat.id
+
+    earlier = (old_date - timedelta(days=30)).strftime("%Y-%m-%d")
+
+    auth_client.post(
+        "/transactions/create",
+        data={
+            "type": "income",
+            "project_id": p_id,
+            "category_id": c_id,
+            "amount": "1000",
+            "currency": "RUB",
+            "description": "before",
+            "date": earlier,
+        },
+        follow_redirects=True,
+    )
+
+    with app.app_context():
+        assert Transaction.query.count() == 0
+
+
+def test_transaction_create_accepts_valid_date(auth_client, app):
+    """Корректная дата (в пределах жизни проекта) — проходит."""
+    from datetime import datetime, timedelta, timezone
+
+    with app.app_context():
+        start = datetime.now(UTC) - timedelta(days=30)
+        project = Project(name="P", created_at=start)
+        cat = IncomeCategory(name="Доход")
+        _db.session.add_all([project, cat])
+        _db.session.commit()
+        p_id = project.id
+        c_id = cat.id
+
+    valid_date = (datetime.now(UTC) - timedelta(days=5)).strftime("%Y-%m-%d")
+
+    auth_client.post(
+        "/transactions/create",
+        data={
+            "type": "income",
+            "project_id": p_id,
+            "category_id": c_id,
+            "amount": "1000",
+            "currency": "RUB",
+            "description": "valid",
+            "date": valid_date,
+        },
+        follow_redirects=True,
+    )
+
+    with app.app_context():
+        assert Transaction.query.count() == 1
 
 
 # ============================================================
