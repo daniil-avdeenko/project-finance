@@ -8,9 +8,11 @@
 import asyncio
 import contextlib
 import logging
+import os
 import sys
 from pathlib import Path
 
+from aiohttp import web
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -32,6 +34,33 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger("scheduler")
+
+
+async def _start_healthcheck_server() -> web.AppRunner | None:
+    """
+    Поднимает HTTP-сервер для healthcheck.
+
+    Railway/Docker шлют GET /healthz → 200 OK. Без БД, без scheduler —
+    просто «процесс отвечает».
+    """
+    if os.getenv("HEALTHCHECK_ENABLED", "true").lower() not in ("1", "true", "yes"):
+        return None
+
+    port = int(os.getenv("HEALTHCHECK_PORT", "8080"))
+
+    async def healthz(_request: web.Request) -> web.Response:
+        return web.json_response({"status": "ok"})
+
+    app = web.Application()
+    app.router.add_get("/healthz", healthz)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+
+    logger.info("Healthcheck listening on :%d/healthz", port)
+    return runner
 
 
 async def _run() -> None:
@@ -87,12 +116,16 @@ async def _run() -> None:
     logger.info("  scrape_cbr     — every 6 hours")
     logger.info("  sync_sheets    — every 1 hour")
 
+    healthcheck_runner = await _start_healthcheck_server()
+
     try:
         await asyncio.Event().wait()  # ждём вечно
     except (KeyboardInterrupt, asyncio.CancelledError):
         logger.info("Shutdown signal received")
     finally:
         scheduler.shutdown(wait=True)
+        if healthcheck_runner:
+            await healthcheck_runner.cleanup()
         logger.info("Scheduler stopped")
 
 
