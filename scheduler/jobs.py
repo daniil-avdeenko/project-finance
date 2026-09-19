@@ -204,10 +204,11 @@ async def job_healthcheck(app) -> None:
 
 
 async def job_scrape_cbr(app) -> None:
-    """Раз в 6 часов: парсит курсы ЦБ и синхронизирует в Grist."""
+    """Раз в 6 часов: парсит курсы ЦБ и сохраняет в БД + Grist."""
     with app.app_context():
         from app.integrations.cbr_scraper import scrape_cbr_rates
         from app.integrations.grist_httpx import sync_rates_to_grist_httpx
+        from app.services.currency_service import upsert_rates
 
         try:
             rates = await scrape_cbr_rates()
@@ -215,8 +216,17 @@ async def job_scrape_cbr(app) -> None:
                 logger.warning("job_scrape_cbr: пустой результат парсинга")
                 return
 
+            # 1. БД — источник истины для расчётов
+            db_result = upsert_rates(rates)
+            logger.info(
+                "job_scrape_cbr DB: added=%d, updated=%d",
+                db_result["added"],
+                db_result["updated"],
+            )
+
+            # 2. Grist — витрина для команды (лог курсов)
             await sync_rates_to_grist_httpx(rates)
-            logger.info("job_scrape_cbr: получено %d курсов", len(rates))
+            logger.info("job_scrape_cbr Grist: получено %d курсов", len(rates))
 
         except Exception as e:
             logger.exception("job_scrape_cbr failed")
