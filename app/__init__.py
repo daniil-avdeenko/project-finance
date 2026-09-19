@@ -100,6 +100,14 @@ def create_app():
     def not_found_error(error):
         return render_template("errors/404.html"), 404
 
+    @app.route("/healthz")
+    def healthz():
+        """
+        Healthcheck для Railway/Docker.
+        """
+
+        return {"status": "ok"}, 200
+
     @app.errorhandler(500)
     def internal_error(error):
         db.session.rollback()
