@@ -13,6 +13,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import joinedload
 
 from app.logging_config import setup_logging
+from app.security import register_security_headers
 
 load_dotenv()
 
@@ -72,6 +73,7 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     setup_logging(app)
+    register_security_headers(app)
 
     # Активируем event-driven listeners
     from app import (
