@@ -64,8 +64,8 @@ def index():
 
     incomes = income_query.all()
     expenses = expense_query.all()
-    total_income = sum(t.amount for t in incomes)
-    total_expense = sum(t.amount for t in expenses)
+    total_income = sum(t.amount_rub for t in incomes)
+    total_expense = sum(t.amount_rub for t in expenses)
     total_profit = total_income - total_expense
     overall_profitability = 0
     if total_income > 0:
@@ -84,8 +84,8 @@ def index():
             p_income_query = p_income_query.filter(Transaction.date <= end_date)
             p_expense_query = p_expense_query.filter(Transaction.date <= end_date)
 
-        p_income = sum(t.amount for t in p_income_query.all())
-        p_expense = sum(t.amount for t in p_expense_query.all())
+        p_income = sum(t.amount_rub for t in p_income_query.all())
+        p_expense = sum(t.amount_rub for t in p_expense_query.all())
         p_profit = p_income - p_expense
         p_profitability = 0
         if p_income > 0:
@@ -322,8 +322,8 @@ def chart():
                 Transaction.date >= start_date,
                 Transaction.date <= end_date,
             ).all()
-            total_income = sum(t.amount for t in incomes)
-            total_expense = sum(t.amount for t in expenses)
+            total_income = sum(t.amount_rub for t in incomes)
+            total_expense = sum(t.amount_rub for t in expenses)
             profit = total_income - total_expense
             profitability = 0
             if total_income > 0:
