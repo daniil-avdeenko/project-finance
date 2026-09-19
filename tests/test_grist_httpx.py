@@ -60,7 +60,12 @@ def fake_transaction():
         project = FakeProject()
         type = "income"
         amount = 5000.0
+        currency = "USD"
         description = "Оплата"
+
+        @property
+        def amount_rub(self):
+            return 8450.0
 
     return FakeTransaction()
 
@@ -240,6 +245,8 @@ async def test_sync_transactions_sends_correct_fields(monkeypatch, fake_transact
     assert record["fields"]["C"] == "income"
     assert record["fields"]["D"] == 5000.0
     assert record["fields"]["E"] == "Оплата"
+    assert record["fields"]["F"] == "USD"
+    assert record["fields"]["RUB_"] == 8450.0
 
 
 @respx.mock

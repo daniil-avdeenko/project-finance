@@ -533,6 +533,60 @@ def test_export_transactions_csv(auth_client):
     assert response.mimetype == "text/csv"
 
 
+def test_export_transactions_csv_includes_amount_rub(auth_client, app):
+    """CSV-экспорт транзакций содержит колонку Сумма (RUB) в правильной позиции."""
+    from datetime import UTC, date, datetime
+
+    from app.services.currency_service import upsert_rates
+
+    class FakeRate:
+        def __init__(self, code, nominal, rate, rate_date):
+            self.code = code
+            self.nominal = nominal
+            self.rate = rate
+            self.rate_date = rate_date
+
+    with app.app_context():
+        upsert_rates([FakeRate("USD", 1, 84.50, date(2026, 9, 19))])
+
+        project = Project(name="P")
+        cat = IncomeCategory(name="C")
+        _db.session.add_all([project, cat])
+        _db.session.commit()
+
+        _db.session.add(
+            Transaction(
+                project_id=project.id,
+                type="income",
+                category_id=cat.id,
+                amount=100,
+                currency="USD",
+                date=datetime(2026, 9, 19, 12, 0, tzinfo=UTC),
+            )
+        )
+        _db.session.commit()
+
+    response = auth_client.get("/transactions/export")
+    text = response.get_data(as_text=True)
+
+    # Заголовок содержит колонку Сумма (RUB)
+    header_line = text.splitlines()[0]
+    assert "Сумма (RUB)" in header_line
+
+    cols = header_line.split(";")
+    idx_amount = cols.index("Сумма")
+    idx_currency = cols.index("Валюта")
+    idx_amount_rub = cols.index("Сумма (RUB)")
+    idx_description = cols.index("Описание")
+
+    assert idx_amount < idx_currency < idx_amount_rub < idx_description
+
+    # Данные: одна транзакция, проверяем значение в колонке Сумма (RUB)
+    data_line = text.splitlines()[1]
+    cells = data_line.split(";")
+    assert cells[idx_amount_rub] == "8450.0"
+
+
 # ============================================================
 #   КОНВЕРТАЦИЯ ВАЛЮТ
 # ============================================================
