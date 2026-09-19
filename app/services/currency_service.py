@@ -94,3 +94,67 @@ def convert_to_rub(amount: float, currency: str, on_date: date | None = None) ->
 
     # rate_rub указан за `nominal` единиц
     return round(amount * rate.rate_rub / rate.nominal, 2)
+
+
+def get_rates_map(codes: set[str]) -> dict[str, list[CurrencyRate]]:
+    """
+    Загружает все курсы для указанных кодов одним SQL-запросом.
+
+    Возвращает {code: [CurrencyRate, ...]}, отсортированные по rate_date desc.
+    Используется в ProjectStatsService для избежания N+1: вместо
+    запроса курса на каждую транзакцию — один запрос на всю страницу.
+
+    RUB исключается — для него конвертация не нужна.
+    """
+    codes = {c for c in codes if c and c != BASE_CURRENCY}
+    if not codes:
+        return {}
+
+    stmt = (
+        select(CurrencyRate)
+        .where(CurrencyRate.code.in_(codes))
+        .order_by(CurrencyRate.code, CurrencyRate.rate_date.desc())
+    )
+
+    result: dict[str, list[CurrencyRate]] = {}
+    for rate in db.session.execute(stmt).scalars():
+        result.setdefault(rate.code, []).append(rate)
+
+    return result
+
+
+def convert_with_rates(
+    amount: float,
+    currency: str,
+    on_date: date | None,
+    rates_map: dict[str, list[CurrencyRate]],
+) -> float:
+    """
+    Конвертирует сумму в RUB, используя предзагруженный rates_map.
+
+    Никаких SQL-запросов — все данные уже в памяти.
+    Логика идентична convert_to_rub, но курс берётся из кеша.
+    """
+    if not currency or currency == BASE_CURRENCY:
+        return amount
+
+    rates = rates_map.get(currency, [])
+    if not rates:
+        logger.warning("Курс %s не найден в кеше", currency)
+        return amount
+
+    # rates отсортированы по rate_date desc → первый ≤ on_date
+    rate: CurrencyRate | None = None
+    if on_date is None:
+        rate = rates[0]
+    else:
+        for r in rates:
+            if r.rate_date <= on_date:
+                rate = r
+                break
+
+    if rate is None:
+        logger.warning("Курс %s на %s не найден в кеше", currency, on_date)
+        return amount
+
+    return round(amount * rate.rate_rub / rate.nominal, 2)
