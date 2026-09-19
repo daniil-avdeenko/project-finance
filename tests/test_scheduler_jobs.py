@@ -1,5 +1,6 @@
 """Тесты задач планировщика."""
 
+from datetime import date
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -232,8 +233,12 @@ async def test_healthcheck_sends_message(app):
 
 
 async def test_scrape_cbr_job_success(app):
-    """Успешный парсинг → вызов sync_rates_to_grist_httpx, без error-события."""
-    fake_rates = ["rate1", "rate2", "rate3"]  # не важно что, мок принимает list
+    """Успешный парсинг → upsert в БД и sync в Grist, без error-события."""
+    fake_rates = [
+        ScrapedRate(code="USD", nominal=1, rate=84.50, rate_date=date(2026, 9, 19)),
+        ScrapedRate(code="EUR", nominal=1, rate=97.50, rate_date=date(2026, 9, 19)),
+        ScrapedRate(code="JPY", nominal=100, rate=54.12, rate_date=date(2026, 9, 19)),
+    ]
 
     with (
         patch(
@@ -247,10 +252,19 @@ async def test_scrape_cbr_job_success(app):
     ):
         await job_scrape_cbr(app)
 
+    # Grist получил те же курсы
     assert sync_mock.called
     assert sync_mock.call_args[0][0] == fake_rates
 
+    # БД тоже наполнилась
     with app.app_context():
+        from app.models import CurrencyRate
+
+        assert CurrencyRate.query.count() == 3
+        usd = CurrencyRate.query.filter_by(code="USD").one()
+        assert usd.rate_rub == 84.50
+        assert usd.nominal == 1
+
         assert EventLog.query.filter_by(event_type="error").count() == 0
 
 
