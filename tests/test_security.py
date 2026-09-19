@@ -110,3 +110,46 @@ def test_429_returns_custom_page(monkeypatch, tmp_path):
     response = client.post("/login", data={"username": "x", "password": "wrong"})
     assert response.status_code == 429
     assert "Слишком много попыток" in response.get_data(as_text=True)
+
+
+def test_sanitize_plain_token():
+    from app.security import sanitize_secrets
+
+    cleaned = sanitize_secrets("TOKEN=abc123xyz")
+    assert "abc123xyz" not in cleaned
+    assert "***" in cleaned
+
+
+def test_sanitize_quoted_secret():
+    from app.security import sanitize_secrets
+
+    cleaned = sanitize_secrets('SECRET_KEY: "my-secret-value"')
+    assert "my-secret-value" not in cleaned
+
+
+def test_sanitize_bearer():
+    from app.security import sanitize_secrets
+
+    cleaned = sanitize_secrets("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig")
+    assert "eyJhbGci" not in cleaned
+    assert "Bearer" in cleaned
+
+
+def test_sanitize_telegram_token():
+    from app.security import sanitize_secrets
+
+    cleaned = sanitize_secrets("token 1234567890:AAHfghjkLmnopQrstUvwxYz1234567890_-")
+    assert "1234567890:AAH" not in cleaned
+
+
+def test_sanitize_preserves_normal_text():
+    from app.security import sanitize_secrets
+
+    text = "Ошибка: файл не найден"
+    assert sanitize_secrets(text) == text
+
+
+def test_sanitize_empty_string():
+    from app.security import sanitize_secrets
+
+    assert sanitize_secrets("") == ""
