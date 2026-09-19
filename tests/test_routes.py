@@ -570,6 +570,90 @@ def test_transactions_filter_by_date(auth_client, app):
     assert response.status_code == 200
 
 
+def test_transactions_filter_by_currency(auth_client, app):
+    """Фильтр по валюте оставляет только выбранную."""
+    from datetime import UTC, datetime
+
+    with app.app_context():
+        project = Project(name="P")
+        cat = IncomeCategory(name="I")
+        _db.session.add_all([project, cat])
+        _db.session.commit()
+
+        _db.session.add_all(
+            [
+                Transaction(
+                    project_id=project.id,
+                    type="income",
+                    category_id=cat.id,
+                    amount=100,
+                    currency="USD",
+                    date=datetime(2026, 9, 1, tzinfo=UTC),
+                ),
+                Transaction(
+                    project_id=project.id,
+                    type="income",
+                    category_id=cat.id,
+                    amount=5000,
+                    currency="RUB",
+                    date=datetime(2026, 9, 1, tzinfo=UTC),
+                ),
+            ]
+        )
+        _db.session.commit()
+
+    response = auth_client.get("/transactions?currency=USD")
+    text = response.get_data(as_text=True)
+
+    # Должна быть только USD-транзакция
+    assert "100.00 USD" in text or "100 USD" in text
+    # RUB-транзакция скрыта — проверяем, что 5000 не видно
+    assert "5 000" not in text
+
+
+def test_transactions_filter_by_project(auth_client, app):
+    """Фильтр по проекту оставляет только транзакции этого проекта."""
+    from datetime import UTC, datetime
+
+    with app.app_context():
+        p1 = Project(name="Проект-А")
+        p2 = Project(name="Проект-Б")
+        cat = IncomeCategory(name="I")
+        _db.session.add_all([p1, p2, cat])
+        _db.session.commit()
+
+        _db.session.add_all(
+            [
+                Transaction(
+                    project_id=p1.id,
+                    type="income",
+                    category_id=cat.id,
+                    amount=1000,
+                    currency="RUB",
+                    date=datetime(2026, 9, 1, tzinfo=UTC),
+                ),
+                Transaction(
+                    project_id=p2.id,
+                    type="income",
+                    category_id=cat.id,
+                    amount=2000,
+                    currency="RUB",
+                    date=datetime(2026, 9, 1, tzinfo=UTC),
+                ),
+            ]
+        )
+        _db.session.commit()
+        p1_id = p1.id
+
+    response = auth_client.get(f"/transactions?project={p1_id}")
+    text = response.get_data(as_text=True)
+
+    # В отфильтрованном списке только транзакция Проект-А (сумма 1 000.00)
+    assert "1 000.00" in text
+    # Транзакции Проект-Б (сумма 2 000.00) в списке нет
+    assert "2 000.00" not in text
+
+
 def test_transaction_create_rejects_future_date(auth_client, app):
     """Дата транзакции не может быть в будущем."""
     from datetime import datetime, timedelta, timezone
