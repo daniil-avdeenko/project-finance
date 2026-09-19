@@ -1,10 +1,24 @@
-# seed.py
+"""
+Наполнение БД тестовыми данными.
+
+Схема: 6 проектов, 30 сотрудников, исторические курсы USD/EUR за 12 месяцев,
+транзакции за период существования проектов (~600 штук). 20% транзакций
+в не-RUB валюте — чтобы demo-данные содержали мультивалютные операции.
+
+Флаг EVENTS_ENABLED=false отключает event_log — иначе на 600 транзакций
+прилетит 600 событий, и scheduler завалит Telegram.
+
+Запуск:
+    python seed.py
+"""
+
 import os
 import random
 from datetime import UTC, datetime, timedelta
 
 from app import create_app, db
 from app.models import (
+    CurrencyRate,
     Employee,
     ExpenseCategory,
     IncomeCategory,
@@ -12,6 +26,24 @@ from app.models import (
     Transaction,
     User,
 )
+
+NON_RUB_SHARE = 0.20
+APPROX_RATES = {"USD": 84.0, "EUR": 97.0}
+
+
+def _pick_currency_and_amount(rub_amount: float) -> tuple[str, float]:
+    """
+    Возвращает (currency, amount).
+
+    С вероятностью NON_RUB_SHARE выбирает USD/EUR и конвертирует рублёвый
+    target в валюту по приблизительному курсу. Иначе — RUB без изменений.
+    """
+    if random.random() >= NON_RUB_SHARE:
+        return "RUB", rub_amount
+
+    currency = random.choice(["USD", "EUR"])
+    amount = round(rub_amount / APPROX_RATES[currency], 2)
+    return currency, amount
 
 
 def seed():
@@ -46,7 +78,6 @@ def seed():
             "Интеграционные услуги",
             "Техническая поддержка",
         ]
-        # Убрали «Дивиденды» (корпоративная статья, не проектная), добавили «Налоги и сборы»
         expense_names = [
             "Внешние программисты",
             "Внутренние программисты",
@@ -70,8 +101,6 @@ def seed():
         expense_cats = {c.name: c for c in ExpenseCategory.query.all()}
 
         # ---------- 3. ПРОЕКТЫ ----------
-        # Реалистичные параметры: длительность 4–9 месяцев, доходы и расходы в месяц
-        # Рентабельность каждого проекта в диапазоне 25–31%
         project_defs = [
             {
                 "name": "CRM для банка «Альфа»",
@@ -168,42 +197,33 @@ def seed():
         db.session.commit()
         print(f"✅ {len(projects)} проектов создано")
 
-        # ---------- 4. СОТРУДНИКИ (фиксированный список) ----------
+        # ---------- 4. СОТРУДНИКИ ----------
         employees_data = [
-            # Тимлиды
             ("Иванов Иван Иванович", "Тимлид"),
             ("Петрова Анна Сергеевна", "Старший разработчик"),
             ("Сидоров Сергей Сергеевич", "Старший разработчик"),
             ("Смирнова Елена Дмитриевна", "Старший разработчик"),
-            # Разработчики
             ("Кузнецов Андрей Николаевич", "Разработчик"),
             ("Попова Мария Александровна", "Разработчик"),
             ("Лебедев Максим Игоревич", "Разработчик"),
             ("Соколова Ольга Викторовна", "Разработчик"),
             ("Морозов Никита Павлович", "Разработчик"),
             ("Волкова Татьяна Романовна", "Разработчик"),
-            # Тимлиды
             ("Козлов Владимир Олегович", "Тимлид"),
             ("Новикова Ирина Евгеньевна", "Тимлид"),
-            # Аналитики
             ("Громов Станислав Юрьевич", "Аналитик"),
             ("Фёдорова Екатерина Максимовна", "Аналитик"),
             ("Михайлов Денис Валерьевич", "Аналитик"),
-            # DevOps
             ("Алексеева Наталья Анатольевна", "DevOps-инженер"),
             ("Васильев Олег Дмитриевич", "DevOps-инженер"),
-            # Менеджеры проектов
             ("Орлов Виктор Сергеевич", "Менеджер проектов"),
             ("Титов Павел Андреевич", "Менеджер проектов"),
             ("Медведева Галина Игоревна", "Менеджер проектов"),
-            # Консультанты
             ("Белов Юрий Владимирович", "Консультант"),
             ("Гаврилов Константин Петрович", "Консультант"),
-            # Тестировщик / поддержка
             ("Андреева Светлана Николаевна", "Тестировщик"),
             ("Фомин Григорий Семёнович", "Инженер поддержки"),
             ("Борисова Ксения Артёмовна", "Инженер поддержки"),
-            # Внешние разработчики
             ("Шмидт Андрей Викторович", "Внешний разработчик"),
             ("Мюллер Елена Александровна", "Внешний разработчик"),
             ("Фишер Павел Дмитриевич", "Внешний разработчик"),
@@ -227,14 +247,13 @@ def seed():
         print(f"✅ {len(employees)} сотрудников создано")
 
         # ---------- 5. РАСПРЕДЕЛЕНИЕ ПО ПРОЕКТАМ ----------
-        # Каждый сотрудник — максимум на 2 проектах
         assignments = {
-            0: [0, 1, 2, 4, 5, 12, 15, 17, 22, 25, 26],  # CRM Альфа — 11 чел
-            1: [3, 6, 7, 13, 18, 27],  # 1С Бета — 6 чел
-            2: [10, 8, 9, 14, 19, 28],  # Мобильное Гамма — 6 чел
-            3: [11, 1, 2, 6, 16, 19, 21],  # Облачная Дельта — 7 чел
-            4: [4, 17, 20, 21],  # Битрикс Эпсилон — 4 чел
-            5: [9, 23, 24, 29],  # Техподдержка Зета — 4 чел
+            0: [0, 1, 2, 4, 5, 12, 15, 17, 22, 25, 26],
+            1: [3, 6, 7, 13, 18, 27],
+            2: [10, 8, 9, 14, 19, 28],
+            3: [11, 1, 2, 6, 16, 19, 21],
+            4: [4, 17, 20, 21],
+            5: [9, 23, 24, 29],
         }
 
         for proj_idx, emp_indices in assignments.items():
@@ -244,7 +263,30 @@ def seed():
         db.session.commit()
         print("✅ Сотрудники распределены по проектам")
 
-        # ---------- 6. ТРАНЗАКЦИИ ----------
+        # ---------- 6. КУРСЫ ВАЛЮТ ----------
+        CurrencyRate.query.delete()
+        db.session.commit()
+
+        base_rate = {"USD": 84.0, "EUR": 97.0}
+        months_back_max = 12
+
+        for months_back in range(months_back_max + 1):
+            rate_date = (now - timedelta(days=months_back * 30)).date()
+            for code, base in base_rate.items():
+                drift = random.uniform(-3.0, 3.0)
+                db.session.add(
+                    CurrencyRate(
+                        code=code,
+                        rate_date=rate_date,
+                        nominal=1,
+                        rate_rub=round(base + drift, 4),
+                    )
+                )
+
+        db.session.commit()
+        print(f"✅ Курсы валют созданы ({len(base_rate) * (months_back_max + 1)} записей)")
+
+        # ---------- 7. ТРАНЗАКЦИИ ----------
         for proj_idx, project in enumerate(projects):
             p_def = project_defs[proj_idx]
             start_date = project.created_at.replace(tzinfo=UTC)
@@ -264,7 +306,8 @@ def seed():
                 income_cats_for_proj = [income_cats[name] for name in p_def["income_cats"]]
                 for _ in range(num_income):
                     cat = random.choice(income_cats_for_proj)
-                    amount = round(target_income / num_income * random.uniform(0.7, 1.3), 2)
+                    rub_amount = round(target_income / num_income * random.uniform(0.7, 1.3), 2)
+                    currency, amount = _pick_currency_and_amount(rub_amount)
                     day = random.randint(1, 28)
                     t_date = current.replace(day=min(day, 28)) + timedelta(
                         days=random.randint(0, 2)
@@ -274,14 +317,13 @@ def seed():
                     )
                     if t_date > end_date:
                         t_date = end_date - timedelta(days=1)
-                    desc = f"Поступление по {cat.name}"
                     transaction = Transaction(
                         project_id=project.id,
                         type="income",
                         category_id=cat.id,
                         amount=amount,
-                        currency="RUB",
-                        description=desc,
+                        currency=currency,
+                        description=f"Поступление по {cat.name}",
                         date=t_date,
                     )
                     db.session.add(transaction)
@@ -289,7 +331,8 @@ def seed():
                 expense_cats_for_proj = [expense_cats[name] for name in p_def["expense_cats"]]
                 for _ in range(num_expense):
                     cat = random.choice(expense_cats_for_proj)
-                    amount = round(target_expense / num_expense * random.uniform(0.7, 1.3), 2)
+                    rub_amount = round(target_expense / num_expense * random.uniform(0.7, 1.3), 2)
+                    currency, amount = _pick_currency_and_amount(rub_amount)
                     day = random.randint(1, 28)
                     t_date = current.replace(day=min(day, 28)) + timedelta(
                         days=random.randint(0, 2)
@@ -299,14 +342,13 @@ def seed():
                     )
                     if t_date > end_date:
                         t_date = end_date - timedelta(days=1)
-                    desc = f"Оплата по {cat.name}"
                     transaction = Transaction(
                         project_id=project.id,
                         type="expense",
                         category_id=cat.id,
                         amount=amount,
-                        currency="RUB",
-                        description=desc,
+                        currency=currency,
+                        description=f"Оплата по {cat.name}",
                         date=t_date,
                     )
                     db.session.add(transaction)
