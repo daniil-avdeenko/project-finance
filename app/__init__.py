@@ -4,6 +4,8 @@ import sqlite3
 
 from dotenv import load_dotenv
 from flask import Flask, render_template
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
@@ -16,7 +18,11 @@ from app.logging_config import setup_logging
 from app.security import register_security_headers
 
 load_dotenv()
-
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[],
+    storage_uri="memory://",
+)
 db = SQLAlchemy()
 
 
@@ -85,6 +91,12 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
     csrf.init_app(app)
+    limiter.init_app(app)
+    app.config["RATELIMIT_ENABLED"] = os.getenv("RATELIMIT_ENABLED", "true").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     login_manager.init_app(app)
     login_manager.login_view = "auth.login"
     login_manager.login_message = "Пожалуйста, войдите для доступа."
@@ -114,6 +126,16 @@ def create_app():
     def not_found_error(error):
         return render_template("errors/404.html"), 404
 
+    @app.errorhandler(429)
+    def ratelimit_handler(error):
+        return render_template("errors/429.html"), 429
+
+    @app.errorhandler(500)
+    def internal_error(error):
+        db.session.rollback()
+        app.logger.error(f"Internal Server Error: {error}", exc_info=True)
+        return render_template("errors/500.html"), 500
+
     @app.route("/healthz")
     def healthz():
         """
@@ -121,12 +143,6 @@ def create_app():
         """
 
         return {"status": "ok"}, 200
-
-    @app.errorhandler(500)
-    def internal_error(error):
-        db.session.rollback()
-        app.logger.error(f"Internal Server Error: {error}", exc_info=True)
-        return render_template("errors/500.html"), 500
 
     # команда для импорта в Grist
     @app.cli.command("sync-grist-httpx")
