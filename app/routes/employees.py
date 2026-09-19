@@ -17,7 +17,6 @@ def parse_project_ids(project_ids_str):
     """
     Преобразует строку с ID проектов (разделённых запятыми) в список целых чисел.
     Игнорирует пустые и нечисловые значения.
-    Используется для обработки скрытого поля project_ids в формах создания/редактирования.
     """
     if not project_ids_str:
         return []
@@ -34,20 +33,15 @@ def parse_project_ids(project_ids_str):
 def employees_list():
     """
     Список сотрудников с фильтрацией по должности и сортировкой.
-    - Фильтр по должности: точное совпадение.
-    - Сортировка: по ФИО (А–Я/Я–А) или по количеству проектов (по возрастанию/убыванию).
-    Сортировка выполняется в Python, так как подсчёт проектов требует дополнительных запросов.
     """
     query = Employee.query
 
-    # Фильтр по должности (если передан параметр)
     position = request.args.get("position")
     if position:
         query = query.filter(Employee.position == position)
 
     employees = query.all()
 
-    # Определяем тип сортировки из параметра запроса (по умолчанию name_asc)
     sort = request.args.get("sort", "name_asc")
     if sort == "name_asc":
         employees.sort(key=lambda e: e.name)
@@ -58,11 +52,9 @@ def employees_list():
     elif sort == "projects_desc":
         employees.sort(key=lambda e: len(e.projects), reverse=True)
 
-    # Получаем список всех уникальных должностей для выпадающего списка
     positions = db.session.query(Employee.position).distinct().all()
     positions = [p[0] for p in positions if p[0]]
 
-    # Формируем опции для сортировки с флагом selected (для удобства отображения в шаблоне)
     sort_options = [
         {"value": "name_asc", "label": "ФИО А–Я", "selected": sort == "name_asc"},
         {"value": "name_desc", "label": "ФИО Я–А", "selected": sort == "name_desc"},
@@ -91,8 +83,7 @@ def employees_list():
 @login_required
 def employee_detail(employee_id):
     """
-    Карточка сотрудника с полной информацией: ФИО, должность, телефон, email,
-    список проектов с их прибылью и рентабельностью.
+    Карточка сотрудника с полной информацией.
     """
     employee = Employee.query.get_or_404(employee_id)
     return render_template("employees/detail.html", employee=employee)
@@ -112,9 +103,8 @@ def employee_create():
             phone=form.phone.data,
             email=form.email.data,
         )
-        # Обработка проектов из скрытого поля
         project_ids = parse_project_ids(request.form.get("project_ids", ""))
-        employee.projects = Project.query.filter(Project.id.in_(project_ids)).all()
+        employee.projects = Project.active().filter(Project.id.in_(project_ids)).all()
 
         try:
             db.session.add(employee)
@@ -125,7 +115,11 @@ def employee_create():
             db.session.rollback()
             flash(f"Ошибка при сохранении: {str(e)}", "danger")
 
-    return render_template("employees/create.html", form=form, all_projects=Project.query.all())
+    return render_template(
+        "employees/create.html",
+        form=form,
+        all_projects=Project.active().all(),
+    )
 
 
 @main_bp.route("/employees/<int:employee_id>/edit", methods=["GET", "POST"])
@@ -134,13 +128,10 @@ def employee_create():
 def employee_edit(employee_id):
     """
     Редактирование сотрудника (доступно только администраторам).
-    - Для GET-запроса: предзаполняет форму данными сотрудника и передаёт JSON-список проектов для JS.
-    - Для POST-запроса: обновляет данные и проекты (через скрытое поле project_ids).
     """
     employee = Employee.query.get_or_404(employee_id)
     form = EmployeeForm(obj=employee)
 
-    # Подготовка JSON-списка проектов сотрудника для передачи в шаблон
     employee_projects_json = json.dumps(
         [{"id": p.id, "name": p.name} for p in employee.projects], ensure_ascii=False
     )
@@ -150,7 +141,7 @@ def employee_edit(employee_id):
             "employees/edit.html",
             form=form,
             employee=employee,
-            all_projects=Project.query.all(),
+            all_projects=Project.active().all(),
             employee_projects_json=employee_projects_json,
         )
 
@@ -160,9 +151,8 @@ def employee_edit(employee_id):
         employee.phone = form.phone.data
         employee.email = form.email.data
 
-        # Обработка проектов из скрытого поля (парсинг строки с ID через запятую)
         project_ids = parse_project_ids(request.form.get("project_ids", ""))
-        employee.projects = Project.query.filter(Project.id.in_(project_ids)).all()
+        employee.projects = Project.active().filter(Project.id.in_(project_ids)).all()
 
         try:
             db.session.commit()
@@ -172,12 +162,11 @@ def employee_edit(employee_id):
             db.session.rollback()
             flash(f"Ошибка при обновлении: {str(e)}", "danger")
 
-    # Если форма не прошла валидацию, возвращаем её с ошибками
     return render_template(
         "employees/edit.html",
         form=form,
         employee=employee,
-        all_projects=Project.query.all(),
+        all_projects=Project.active().all(),
         employee_projects_json=employee_projects_json,
     )
 
@@ -186,10 +175,7 @@ def employee_edit(employee_id):
 @login_required
 @admin_required
 def employee_delete(employee_id):
-    """
-    Удаление сотрудника (доступно только администраторам).
-    После удаления перенаправляет на список сотрудников.
-    """
+    """Удаление сотрудника (доступно только администраторам)."""
     employee = Employee.query.get_or_404(employee_id)
     try:
         db.session.delete(employee)
@@ -205,9 +191,7 @@ def employee_delete(employee_id):
 @login_required
 def export_employees_csv():
     """
-    Экспорт всех сотрудников в CSV-файл с разделителем ';'.
-    Включает поля: ID, ФИО, Должность, Телефон, Email, Проекты (через запятую).
-    Используется общая функция make_csv_response из helpers для корректной кодировки.
+    Экспорт всех сотрудников в CSV-файл.
     """
     employees = Employee.query.all()
     si = StringIO()

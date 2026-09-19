@@ -53,11 +53,11 @@ def income_category_edit(category_id):
 def income_category_delete(category_id):
     """
     Удаление категории дохода (только для админов).
-    Запрещено, если категория используется в транзакциях.
+    Запрещено, если категория используется в активных транзакциях.
     """
     category = IncomeCategory.query.get_or_404(category_id)
-    # Проверка использования в транзакциях
-    if Transaction.query.filter_by(category_id=category_id, type="income").first():
+    # Проверка использования в АКТИВНЫХ транзакциях
+    if Transaction.active().filter_by(category_id=category_id, type="income").first():
         flash("Нельзя удалить категорию, так как она используется в транзакциях", "danger")
         return redirect(url_for("main.income_categories_list"))
     db.session.delete(category)
@@ -111,11 +111,10 @@ def expense_category_edit(category_id):
 def expense_category_delete(category_id):
     """
     Удаление категории расхода (только для админов).
-    Запрещено, если категория используется в транзакциях.
+    Запрещено, если категория используется в активных транзакциях.
     """
     category = ExpenseCategory.query.get_or_404(category_id)
-    # Проверка использования в транзакциях
-    if Transaction.query.filter_by(category_id=category_id, type="expense").first():
+    if Transaction.active().filter_by(category_id=category_id, type="expense").first():
         flash("Нельзя удалить категорию, так как она используется в транзакциях", "danger")
         return redirect(url_for("main.expense_categories_list"))
     db.session.delete(category)

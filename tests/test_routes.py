@@ -145,7 +145,7 @@ def test_edit_project(auth_client, app):
 
 
 def test_delete_project(auth_client, app):
-    """Удаление проекта также удаляет его транзакции (каскад)."""
+    """Soft delete: проект остаётся в БД, но помечен is_deleted."""
     with app.app_context():
         project = Project(name="Удаляемый проект")
         category = IncomeCategory(name="Доход")
@@ -167,8 +167,22 @@ def test_delete_project(auth_client, app):
     assert response.status_code == 200
 
     with app.app_context():
-        assert _db.session.get(Project, project_id) is None
-        assert Transaction.query.count() == 0
+        p = _db.session.get(Project, project_id)
+        assert p is not None, "физически удалён"
+        assert p.is_deleted is True
+        assert Project.active().filter_by(id=project_id).first() is None
+
+
+def test_deleted_project_not_in_dashboard(auth_client, app):
+    """Удалённый проект не появляется на дашборде."""
+    with app.app_context():
+        project = Project(name="Скрытый проект", is_deleted=True)
+        _db.session.add(project)
+        _db.session.commit()
+
+    response = auth_client.get("/")
+    text = response.get_data(as_text=True)
+    assert "Скрытый проект" not in text
 
 
 # ============================================================
@@ -274,7 +288,7 @@ def test_edit_transaction(auth_client, app):
 
 
 def test_delete_transaction(auth_client, app):
-    """Удаление транзакции работает."""
+    """Soft delete: транзакция остаётся в БД, но помечена is_deleted."""
     with app.app_context():
         project = Project(name="Проект")
         category = IncomeCategory(name="Доход")
@@ -292,8 +306,53 @@ def test_delete_transaction(auth_client, app):
     assert response.status_code == 200
 
     with app.app_context():
-        assert _db.session.get(Transaction, t_id) is None
-        assert Transaction.query.count() == 0
+        t = _db.session.get(Transaction, t_id)
+        assert t is not None
+        assert t.is_deleted is True
+        assert Transaction.active().filter_by(id=t_id).first() is None
+
+
+def test_deleted_transaction_not_in_totals(auth_client, app):
+    """Удалённая транзакция не учитывается в прибыли проекта."""
+    from datetime import UTC, datetime
+
+    with app.app_context():
+        project = Project(name="P")
+        inc = IncomeCategory(name="I")
+        _db.session.add_all([project, inc])
+        _db.session.commit()
+
+        # Активная: +1000
+        _db.session.add(
+            Transaction(
+                project_id=project.id,
+                type="income",
+                category_id=inc.id,
+                amount=1000,
+                currency="RUB",
+                date=datetime(2026, 9, 1, tzinfo=UTC),
+            )
+        )
+        # Удалённая: +5000 (не должна влиять)
+        _db.session.add(
+            Transaction(
+                project_id=project.id,
+                type="income",
+                category_id=inc.id,
+                amount=5000,
+                currency="RUB",
+                is_deleted=True,
+                date=datetime(2026, 9, 1, tzinfo=UTC),
+            )
+        )
+        _db.session.commit()
+
+    response = auth_client.get("/")
+    text = response.get_data(as_text=True)
+
+    # На дашборде сумма 1 000, не 6 000
+    assert "1 000" in text
+    assert "6 000" not in text
 
 
 # ============================================================
@@ -473,7 +532,7 @@ def test_delete_expense_category(auth_client, app):
 
 
 # ============================================================
-#   ТРАНЗАКЦИИ
+#   ТРАНЗАКЦИИ - ФИЛЬТРЫ И ДАТЫ
 # ============================================================
 
 

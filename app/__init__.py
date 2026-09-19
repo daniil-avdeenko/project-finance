@@ -156,9 +156,10 @@ def create_app():
 
         app.logger.info("Начинаю синхронизацию с Grist через httpx...")
         try:
-            projects = Project.query.all()
+            projects = Project.active().all()
             transactions = (
-                Transaction.query.options(joinedload(Transaction.project))
+                Transaction.active()
+                .options(joinedload(Transaction.project))
                 .order_by(Transaction.date.desc())
                 .all()
             )
@@ -233,9 +234,10 @@ def create_app():
 
         app.logger.info("Начинаю синхронизацию с Google Sheets...")
         try:
-            projects = Project.query.all()
+            projects = Project.active().all()
             transactions = (
-                Transaction.query.options(joinedload(Transaction.project))
+                Transaction.active()
+                .options(joinedload(Transaction.project))
                 .order_by(Transaction.date.desc())
                 .all()
             )

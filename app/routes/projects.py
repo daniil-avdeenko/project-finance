@@ -55,8 +55,8 @@ def index():
             end_date = datetime(selected_year, selected_month, last_day, 23, 59, 59, tzinfo=UTC)
             period_label = f"{calendar.month_name[selected_month]} {selected_year}"
 
-    # Загружаем все транзакции за период одним разом
-    base_query = Transaction.query
+    # Загружаем все транзакции за период одним разом (без удалённых)
+    base_query = Transaction.active()
     if start_date:
         base_query = base_query.filter(Transaction.date >= start_date)
     if end_date:
@@ -76,7 +76,7 @@ def index():
     for t in all_transactions:
         tx_by_project[t.project_id].append(t)
 
-    all_projects = Project.query.all()
+    all_projects = Project.active().all()
     projects_stats = []
     for project in all_projects:
         p_stats = ProjectStatsService.calculate(tx_by_project[project.id], rates_map)
@@ -128,8 +128,8 @@ def index():
 @main_bp.route("/projects")
 @login_required
 def projects_list():
-    """Список всех проектов."""
-    projects = Project.query.all()
+    """Список всех активных проектов."""
+    projects = Project.active().all()
     return render_template("projects/list.html", projects=projects)
 
 
@@ -157,9 +157,10 @@ def project_create():
 def project_detail(project_id):
     """
     Детальная страница проекта.
+    Удалённые проекты недоступны (404).
     Если запрос POST и пользователь админ – обновляет список сотрудников.
     """
-    project = Project.query.get_or_404(project_id)
+    project = Project.active().filter_by(id=project_id).first_or_404()
 
     if request.method == "POST" and current_user.is_admin():
         employee_ids = parse_ids_from_string(request.form.get("employee_ids", ""))
@@ -173,7 +174,9 @@ def project_detail(project_id):
             flash(f"Ошибка при сохранении: {str(e)}", "danger")
         return redirect(url_for("main.project_detail", project_id=project.id))
 
-    transactions = project.transactions.order_by(Transaction.date.desc()).all()
+    transactions = (
+        project.transactions.filter_by(is_deleted=False).order_by(Transaction.date.desc()).all()
+    )
     income_categories = {c.id: c.name for c in IncomeCategory.query.all()}
     expense_categories = {c.id: c.name for c in ExpenseCategory.query.all()}
     all_employees = Employee.query.all()
@@ -192,8 +195,8 @@ def project_detail(project_id):
 @login_required
 @admin_required
 def project_edit(project_id):
-    """Редактирование проекта (только для админов)."""
-    project = Project.query.get_or_404(project_id)
+    """Редактирование проекта (только для админов). Удалённые недоступны."""
+    project = Project.active().filter_by(id=project_id).first_or_404()
     form = ProjectForm(obj=project)
     if form.validate_on_submit():
         project.name = form.name.data
@@ -212,10 +215,11 @@ def project_edit(project_id):
 @login_required
 @admin_required
 def project_delete(project_id):
-    """Удаление проекта (только для админов)."""
+    """Soft delete проекта (только для админов)."""
     project = Project.query.get_or_404(project_id)
     try:
-        db.session.delete(project)
+        project.is_deleted = True
+        project.employees = []  # отвязываем сотрудников
         db.session.commit()
         flash("Проект удалён", "warning")
     except Exception as e:
@@ -227,7 +231,7 @@ def project_delete(project_id):
 @main_bp.route("/projects/export")
 @login_required
 def export_projects_csv():
-    projects = Project.query.all()
+    projects = Project.active().all()
     si = StringIO()
     writer = csv.writer(si, delimiter=";", quoting=csv.QUOTE_MINIMAL)
     writer.writerow(
@@ -254,7 +258,7 @@ def export_projects_csv():
                 round(p.profit, 2),
                 p.profitability,
                 len(p.employees),
-                p.transactions.count(),
+                p.transactions.filter_by(is_deleted=False).count(),
             ]
         )
     csv_content = si.getvalue()
@@ -267,9 +271,10 @@ def export_projects_csv():
 def chart():
     """
     Страница графика рентабельности по проектам за последние 6 месяцев.
+    Удалённые проекты и транзакции не учитываются.
     """
     now = datetime.now(UTC)
-    projects = Project.query.all()
+    projects = Project.active().all()
 
     month_labels = []
     month_ranges = []
@@ -302,25 +307,25 @@ def chart():
         "#36A2EB",
     ]
 
-    # Загружаем все транзакции за весь 6-месячный период
+    # Загружаем все транзакции за весь 6-месячный период (без удалённых)
     period_start = month_ranges[0][0]
     period_end = month_ranges[-1][1]
 
-    all_transactions = Transaction.query.filter(
-        Transaction.date >= period_start, Transaction.date <= period_end
-    ).all()
+    all_transactions = (
+        Transaction.active()
+        .filter(Transaction.date >= period_start, Transaction.date <= period_end)
+        .all()
+    )
 
     codes = ProjectStatsService.collect_codes(all_transactions)
     rates_map = get_rates_map(codes)
 
-    # Группируем по (project_id, месяц)
-    by_project_month: dict[tuple[int, int], list] = defaultdict(list)
+    # Группируем по (project_id, (year, month))
+    by_project_month: dict[tuple[int, tuple[int, int]], list] = defaultdict(list)
     for t in all_transactions:
         if not t.date:
             continue
-        t_month = t.date.month
-        t_year = t.date.year
-        by_project_month[(t.project_id, (t_year, t_month))].append(t)
+        by_project_month[(t.project_id, (t.date.year, t.date.month))].append(t)
 
     projects_data = []
     for idx, project in enumerate(projects):
