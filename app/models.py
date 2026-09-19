@@ -37,6 +37,13 @@ class Project(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.String(255))
+    is_deleted = db.Column(
+        db.Boolean,
+        default=False,
+        server_default=db.text("0"),
+        nullable=False,
+        index=True,
+    )
     created_at = db.Column(db.DateTime, default=datetime.now(UTC))
 
     # Связь с сотрудниками (many-to-many)
@@ -121,6 +128,13 @@ class Transaction(db.Model):
     amount = db.Column(db.Float, nullable=False)
     currency = db.Column(db.String(10), default="RUB")
     description = db.Column(db.String(255))
+    is_deleted = db.Column(
+        db.Boolean,
+        default=False,
+        server_default=db.text("0"),
+        nullable=False,
+        index=True,
+    )
     date = db.Column(db.DateTime, default=datetime.now(UTC))
 
     def __repr__(self):
