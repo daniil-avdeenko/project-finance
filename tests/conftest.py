@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 # Переопределяем переменные окружения ДО импорта приложения
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["SECRET_KEY"] = "test-key"
+os.environ["RATELIMIT_ENABLED"] = "false"
 
 import pytest
 

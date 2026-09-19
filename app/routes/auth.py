@@ -3,6 +3,7 @@ from urllib.parse import urljoin, urlparse
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
+from app import limiter
 from app.forms import LoginForm
 from app.models import User
 
@@ -20,6 +21,7 @@ def is_safe_url(target):
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])
+@limiter.limit("5 per minute", methods=["POST"])
 def login():
     """
     Страница входа. При успешной аутентификации перенаправляет на главную
