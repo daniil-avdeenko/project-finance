@@ -50,16 +50,16 @@ class Project(db.Model):
     )
 
     @property
-    def total_income(self):
-        return sum(t.amount for t in self.transactions if t.type == "income")
+    def total_income(self) -> float:
+        return sum(t.amount_rub for t in self.transactions if t.type == "income")
 
     @property
-    def total_expense(self):
-        return sum(t.amount for t in self.transactions if t.type == "expense")
+    def total_expense(self) -> float:
+        return sum(t.amount_rub for t in self.transactions if t.type == "expense")
 
     @property
-    def profit(self):
-        return self.total_income - self.total_expense
+    def profit(self) -> float:
+        return round(self.total_income - self.total_expense, 2)
 
     @property
     def profitability(self):
@@ -125,6 +125,16 @@ class Transaction(db.Model):
 
     def __repr__(self):
         return f"<Transaction {self.type} {self.amount} {self.currency}>"
+
+    @property
+    def amount_rub(self) -> float:
+        """
+        Сумма в рублях по курсу ЦБ на дату транзакции.
+        """
+        from app.services.currency_service import convert_to_rub
+
+        tx_date = self.date.date() if self.date else None
+        return convert_to_rub(self.amount, self.currency or "RUB", tx_date)
 
 
 class EventLog(db.Model):
