@@ -110,6 +110,12 @@ def index():
             }
         )
 
+    # Сводка актуальных курсов ЦБ для USD/EUR
+    from app.services.currency_service import get_rate
+
+    usd_rate = get_rate("USD")
+    eur_rate = get_rate("EUR")
+
     return render_template(
         "index.html",
         projects_stats=projects_stats,
@@ -122,6 +128,8 @@ def index():
         selected_year=selected_year,
         months=months,
         period_label=period_label,
+        usd_rate=usd_rate,
+        eur_rate=eur_rate,
     )
 
 
