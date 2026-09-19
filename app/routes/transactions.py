@@ -47,13 +47,15 @@ def _validate_transaction_date(form, project) -> str | None:
 @login_required
 def transactions_list():
     """
-    Список транзакций с фильтрацией по дате и типу, пагинация.
+    Список транзакций с фильтрацией по дате, типу, валюте и проекту. Пагинация.
     """
     page = request.args.get("page", 1, type=int)
     per_page = 20
     date_from = request.args.get("date_from")
     date_to = request.args.get("date_to")
     type_filter = request.args.get("type")
+    currency_filter = request.args.get("currency")
+    project_filter = request.args.get("project", type=int)
 
     query = Transaction.active()
 
@@ -76,13 +78,22 @@ def transactions_list():
     if type_filter in ("income", "expense"):
         query = query.filter(Transaction.type == type_filter)
 
-    pagination = query.order_by(Transaction.date.desc()).paginate(
+    if currency_filter in ("RUB", "USD", "EUR"):
+        query = query.filter(Transaction.currency == currency_filter)
+
+    if project_filter:
+        query = query.filter(Transaction.project_id == project_filter)
+
+    pagination = query.order_by(Transaction.date.desc(), Transaction.id.desc()).paginate(
         page=page, per_page=per_page, error_out=False
     )
     transactions = pagination.items
 
     income_categories = {c.id: c.name for c in IncomeCategory.query.all()}
     expense_categories = {c.id: c.name for c in ExpenseCategory.query.all()}
+
+    all_projects_for_filter = Project.active().order_by(Project.name).all()
+    currencies_for_filter = ["RUB", "USD", "EUR"]
 
     return render_template(
         "transactions/list.html",
@@ -93,6 +104,10 @@ def transactions_list():
         date_from=date_from,
         date_to=date_to,
         type_filter=type_filter,
+        currency_filter=currency_filter,
+        project_filter=project_filter,
+        all_projects_for_filter=all_projects_for_filter,
+        currencies_for_filter=currencies_for_filter,
     )
 
 
