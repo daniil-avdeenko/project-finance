@@ -1,7 +1,7 @@
 from flask_wtf import FlaskForm
 from wtforms import (
     BooleanField,
-    DateField,
+    DateTimeField,
     PasswordField,
     SelectField,
     StringField,
@@ -46,19 +46,22 @@ class TransactionForm(FlaskForm):
     )
     project_id = SelectField("Проект", coerce=int, validators=[DataRequired()])
     category_id = SelectField("Категория", coerce=int, validators=[DataRequired()])
-    amount = StringField("Сумма", validators=[DataRequired()])  # <-- изменено на StringField
+    amount = StringField("Сумма", validators=[DataRequired()])
     currency = SelectField(
         "Валюта", choices=[("RUB", "₽"), ("USD", "$"), ("EUR", "€")], default="RUB"
     )
     description = StringField("Описание", validators=[Optional()])
-    date = DateField("Дата", validators=[Optional()], format="%Y-%m-%d")
+    date = DateTimeField(
+        "Дата и время",
+        validators=[Optional()],
+        format="%Y-%m-%dT%H:%M",
+    )
 
     def validate_amount(self, field):
         """Очищает строку с суммой, преобразует в float и проверяет > 0"""
         if not field.data:
             raise ValidationError("Сумма не может быть пустой")
 
-        # Очищаем: убираем пробелы, заменяем запятую на точку
         cleaned = str(field.data).replace(" ", "").replace(",", ".")
 
         try:
@@ -71,5 +74,4 @@ class TransactionForm(FlaskForm):
         if value <= 0:
             raise ValidationError("Сумма должна быть больше 0")
 
-        # Сохраняем число обратно в поле (чтобы дальше использовать float)
         field.data = value
