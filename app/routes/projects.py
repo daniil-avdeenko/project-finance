@@ -1,6 +1,7 @@
 import calendar
 import csv
 from calendar import monthrange
+from collections import defaultdict
 from datetime import UTC, datetime
 from io import StringIO
 
@@ -13,6 +14,8 @@ from app.forms import ProjectForm
 from app.helpers import make_csv_response, parse_ids_from_string
 from app.models import Employee, ExpenseCategory, IncomeCategory, Project, Transaction
 from app.routes.blueprint import main_bp
+from app.services.currency_service import get_rates_map
+from app.services.project_stats import ProjectStatsService
 
 
 @main_bp.route("/")
@@ -52,57 +55,48 @@ def index():
             end_date = datetime(selected_year, selected_month, last_day, 23, 59, 59, tzinfo=UTC)
             period_label = f"{calendar.month_name[selected_month]} {selected_year}"
 
-    # Базовые запросы с фильтром по дате
-    income_query = Transaction.query.filter(Transaction.type == "income")
-    expense_query = Transaction.query.filter(Transaction.type == "expense")
+    # Загружаем все транзакции за период одним разом
+    base_query = Transaction.query
     if start_date:
-        income_query = income_query.filter(Transaction.date >= start_date)
-        expense_query = expense_query.filter(Transaction.date >= start_date)
+        base_query = base_query.filter(Transaction.date >= start_date)
     if end_date:
-        income_query = income_query.filter(Transaction.date <= end_date)
-        expense_query = expense_query.filter(Transaction.date <= end_date)
+        base_query = base_query.filter(Transaction.date <= end_date)
 
-    incomes = income_query.all()
-    expenses = expense_query.all()
-    total_income = sum(t.amount_rub for t in incomes)
-    total_expense = sum(t.amount_rub for t in expenses)
-    total_profit = total_income - total_expense
-    overall_profitability = 0
-    if total_income > 0:
-        overall_profitability = round((total_profit / total_income) * 100, 2)
+    all_transactions = base_query.all()
 
-    # Статистика по проектам
+    # Загружаем курсы ОДИН раз для всех валют
+    codes = ProjectStatsService.collect_codes(all_transactions)
+    rates_map = get_rates_map(codes)
+
+    # Общая статистика
+    total_stats = ProjectStatsService.calculate(all_transactions, rates_map)
+
+    # Группируем транзакции по проектам
+    tx_by_project: dict[int, list] = defaultdict(list)
+    for t in all_transactions:
+        tx_by_project[t.project_id].append(t)
+
     all_projects = Project.query.all()
     projects_stats = []
     for project in all_projects:
-        p_income_query = project.transactions.filter(Transaction.type == "income")
-        p_expense_query = project.transactions.filter(Transaction.type == "expense")
-        if start_date:
-            p_income_query = p_income_query.filter(Transaction.date >= start_date)
-            p_expense_query = p_expense_query.filter(Transaction.date >= start_date)
-        if end_date:
-            p_income_query = p_income_query.filter(Transaction.date <= end_date)
-            p_expense_query = p_expense_query.filter(Transaction.date <= end_date)
-
-        p_income = sum(t.amount_rub for t in p_income_query.all())
-        p_expense = sum(t.amount_rub for t in p_expense_query.all())
-        p_profit = p_income - p_expense
-        p_profitability = 0
-        if p_income > 0:
-            p_profitability = round((p_profit / p_income) * 100, 2)
+        p_stats = ProjectStatsService.calculate(tx_by_project[project.id], rates_map)
         projects_stats.append(
             {
                 "id": project.id,
                 "name": project.name,
                 "description": project.description,
-                "profit": p_profit,
-                "profitability": p_profitability,
-                "income": p_income,
-                "expense": p_expense,
+                "profit": p_stats.profit,
+                "profitability": p_stats.profitability,
+                "income": p_stats.total_income,
+                "expense": p_stats.total_expense,
             }
         )
 
     total_projects = len(all_projects)
+    total_income = total_stats.total_income
+    total_expense = total_stats.total_expense
+    total_profit = total_stats.profit
+    overall_profitability = total_stats.profitability
 
     # Список месяцев текущего года (от текущего к январю)
     current_month = now.month
@@ -308,27 +302,34 @@ def chart():
         "#36A2EB",
     ]
 
+    # Загружаем все транзакции за весь 6-месячный период
+    period_start = month_ranges[0][0]
+    period_end = month_ranges[-1][1]
+
+    all_transactions = Transaction.query.filter(
+        Transaction.date >= period_start, Transaction.date <= period_end
+    ).all()
+
+    codes = ProjectStatsService.collect_codes(all_transactions)
+    rates_map = get_rates_map(codes)
+
+    # Группируем по (project_id, месяц)
+    by_project_month: dict[tuple[int, int], list] = defaultdict(list)
+    for t in all_transactions:
+        if not t.date:
+            continue
+        t_month = t.date.month
+        t_year = t.date.year
+        by_project_month[(t.project_id, (t_year, t_month))].append(t)
+
     projects_data = []
     for idx, project in enumerate(projects):
         data = []
-        for start_date, end_date in month_ranges:
-            incomes = project.transactions.filter(
-                Transaction.type == "income",
-                Transaction.date >= start_date,
-                Transaction.date <= end_date,
-            ).all()
-            expenses = project.transactions.filter(
-                Transaction.type == "expense",
-                Transaction.date >= start_date,
-                Transaction.date <= end_date,
-            ).all()
-            total_income = sum(t.amount_rub for t in incomes)
-            total_expense = sum(t.amount_rub for t in expenses)
-            profit = total_income - total_expense
-            profitability = 0
-            if total_income > 0:
-                profitability = round((profit / total_income) * 100, 2)
-            data.append(profitability)
+        for start_date, _end_date in month_ranges:
+            key = (project.id, (start_date.year, start_date.month))
+            month_tx = by_project_month[key]
+            stats = ProjectStatsService.calculate(month_tx, rates_map)
+            data.append(stats.profitability)
 
         projects_data.append(
             {
