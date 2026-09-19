@@ -114,3 +114,14 @@ body {
     transition: transform var(--scroll-duration, 2s) linear;
     transform: translateX(calc(-1 * var(--scroll-distance, 0px)));
 }
+/* Модалка удаления: длинное имя объекта не должно вылезать за границы */
+#deleteObjectName {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.modal-body {
+    overflow-wrap: anywhere;
+}
