@@ -3,12 +3,14 @@
 {% block title %}{{ project.name }}{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-start mb-4">
-    <div>
-        <h1>📊 {{ project.name }}</h1>
-        <p class="text-muted">{{ project.description or 'Описание отсутствует' }}</p>
+<div class="d-flex justify-content-between align-items-start mb-4 gap-3">
+    <div class="flex-grow-1" style="min-width: 0;">
+        <h1 class="project-title mb-2">
+            <span>📊 {{ project.name }}</span>
+        </h1>
+        <p class="text-muted mb-0">{{ project.description or 'Описание отсутствует' }}</p>
     </div>
-    <div>
+    <div class="flex-shrink-0">
         {% if current_user.is_admin() %}
         <a href="{{ url_for('main.project_edit', project_id=project.id) }}" class="btn btn-outline-secondary me-2">
             <i class="fas fa-pen me-1"></i>Редактировать
@@ -148,4 +150,25 @@
     {% endfor %}
     </tbody>
 </table>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const title = document.querySelector('.project-title');
+        if (!title) return;
+
+        const span = title.querySelector('span');
+        if (!span) return;
+
+        // Проверяем, обрезается ли текст
+        const overflow = span.scrollWidth - title.clientWidth;
+
+        if (overflow > 0) {
+            title.classList.add('is-overflowing');
+            // Скорость прокрутки ~60px/сек
+            const duration = Math.max(1.5, overflow / 200);
+            title.style.setProperty('--scroll-distance', overflow + 'px');
+            title.style.setProperty('--scroll-duration', duration + 's');
+        }
+    });
+</script>
 {% endblock %}
