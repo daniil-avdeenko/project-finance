@@ -70,23 +70,25 @@ async def send_error(task_name: str, error: Exception, traceback_text: str = "")
     """
     Форматирует и отправляет сообщение об ошибке задачи.
 
-    task_name — имя job'а (например, 'job_sync_grist').
-    error — исключение.
+    Значения санитизируются: если в трейсбеке окажется токен или пароль,
+    в Telegram уйдёт ***.
     """
+    from app.security import sanitize_secrets
+
     error_type = type(error).__name__
-    error_msg = str(error)
+    error_msg = sanitize_secrets(str(error))
+    task_name_safe = sanitize_secrets(task_name)
 
     parts = [
         "❌ <b>Ошибка задачи</b>",
         "",
-        f"<b>Задача:</b> <code>{escape(task_name)}</code>",
+        f"<b>Задача:</b> <code>{escape(task_name_safe)}</code>",
         f"<b>Тип:</b> <code>{escape(error_type)}</code>",
         f"<b>Сообщение:</b> {escape(error_msg)}",
     ]
 
     if traceback_text:
-        # Ограничиваем трейсбек, чтобы не превысить лимит Telegram (4096 символов)
-        trimmed = traceback_text[-1500:]
+        trimmed = sanitize_secrets(traceback_text)[-1500:]
         parts.append("")
         parts.append(f"<pre>{escape(trimmed)}</pre>")
 
