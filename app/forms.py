@@ -50,7 +50,7 @@ class TransactionForm(FlaskForm):
     currency = SelectField(
         "Валюта", choices=[("RUB", "₽"), ("USD", "$"), ("EUR", "€")], default="RUB"
     )
-    description = StringField("Описание", validators=[Optional()])
+    description = TextAreaField("Описание", validators=[Optional()])
     date = DateTimeField(
         "Дата и время",
         validators=[Optional()],
