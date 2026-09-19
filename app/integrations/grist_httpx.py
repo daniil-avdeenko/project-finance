@@ -106,6 +106,8 @@ async def sync_transactions_to_grist_httpx(transactions: list) -> dict:
                 "C": t.type,
                 "D": t.amount,
                 "E": t.description or "",
+                "F": t.currency or "RUB",
+                "RUB_": t.amount_rub,
             },
         }
         for t in transactions
