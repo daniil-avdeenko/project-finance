@@ -14,6 +14,7 @@ from gspread_formatting import (
     CellFormat,
     Color,
     DataValidationRule,
+    NumberFormat,
     TextFormat,
     format_cell_range,
     set_data_validation_for_cell_range,
@@ -42,6 +43,7 @@ TRANSACTIONS_HEADERS = [
     "Тип",
     "Сумма",
     "Валюта",
+    "Сумма (RUB)",
     "Описание",
 ]
 
@@ -150,12 +152,14 @@ def sync_transactions_to_sheets(worksheet: gspread.Worksheet, transactions: list
             t.type,
             round(t.amount, 2),
             t.currency or "RUB",
+            t.amount_rub,
             t.description or "",
         ]
         for t in transactions
     ]
     _fill_worksheet(worksheet, TRANSACTIONS_HEADERS, rows)
     apply_validation(worksheet)
+    apply_number_format(worksheet)
     return len(rows)
 
 
@@ -178,3 +182,12 @@ def sync_all_to_sheets(projects: list, transactions: list) -> dict[str, int]:
         n_transactions,
     )
     return {"projects": n_projects, "transactions": n_transactions}
+
+
+def apply_number_format(worksheet: gspread.Worksheet) -> None:
+    """Числовой формат для колонок Amount (E) и Amount RUB (G)."""
+    number_format = CellFormat(
+        numberFormat=NumberFormat(type="NUMBER", pattern="#,##0.00"),
+    )
+    format_cell_range(worksheet, "E2:E1000", number_format)
+    format_cell_range(worksheet, "G2:G1000", number_format)
