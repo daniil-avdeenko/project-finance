@@ -31,3 +31,20 @@ def test_secret_key_dev_fallback(monkeypatch):
 
     app = create_app()
     assert app.config["SECRET_KEY"] == "dev-key-for-testing"
+
+
+def test_security_headers_present(client):
+    """Все ключевые headers присутствуют в ответе."""
+    response = client.get("/healthz")
+
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "SAMEORIGIN"
+    assert "strict-origin-when-cross-origin" in response.headers["Referrer-Policy"]
+    assert "geolocation=()" in response.headers["Permissions-Policy"]
+    assert "default-src 'self'" in response.headers["Content-Security-Policy"]
+
+
+def test_headers_on_login_page(client):
+    """Headers добавляются и к HTML-страницам, не только к JSON."""
+    response = client.get("/login")
+    assert "X-Content-Type-Options" in response.headers
