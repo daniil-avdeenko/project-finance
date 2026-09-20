@@ -5,12 +5,30 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from app import db
 
-# Промежуточная таблица для связи многие-ко-многим (Employee <-> Project)
-employee_projects = db.Table(
-    "employee_projects",
-    db.Column("employee_id", db.Integer, db.ForeignKey("employees.id"), primary_key=True),
-    db.Column("project_id", db.Integer, db.ForeignKey("projects.id"), primary_key=True),
-)
+
+class EmployeeProject(db.Model):
+    """
+    Связь сотрудник-проект с ролью на проекте.
+
+    Association Object вместо M2M: у связи есть поле `role`, которое
+    описывает, кем сотрудник работает на конкретном проекте.
+    """
+
+    __tablename__ = "employee_projects"
+
+    employee_id = db.Column(
+        db.Integer, db.ForeignKey("employees.id", ondelete="CASCADE"), primary_key=True
+    )
+    project_id = db.Column(
+        db.Integer, db.ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True
+    )
+    role = db.Column(db.String(100), nullable=False)
+
+    employee = db.relationship("Employee", back_populates="project_roles")
+    project = db.relationship("Project", back_populates="employee_roles")
+
+    def __repr__(self) -> str:
+        return f"<EmployeeProject emp={self.employee_id} proj={self.project_id} role={self.role}>"
 
 
 class User(UserMixin, db.Model):
@@ -46,8 +64,18 @@ class Project(db.Model):
     )
     created_at = db.Column(db.DateTime, default=datetime.now(UTC))
 
-    # Связь с сотрудниками (many-to-many)
-    employees = db.relationship("Employee", secondary=employee_projects, back_populates="projects")
+    employee_roles = db.relationship(
+        "EmployeeProject",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    @property
+    def employees(self) -> list:
+        """Список сотрудников проекта (без ролей). Для обратной совместимости."""
+        return [er.employee for er in self.employee_roles]
+
     transactions = db.relationship(
         "Transaction",
         backref="project",
@@ -98,12 +126,29 @@ class Employee(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    position = db.Column(db.String(100))
     phone = db.Column(db.String(20))
     email = db.Column(db.String(100))
 
-    # Связь с проектами (many-to-many)
-    projects = db.relationship("Project", secondary=employee_projects, back_populates="employees")
+    project_roles = db.relationship(
+        "EmployeeProject",
+        back_populates="employee",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    @property
+    def projects(self) -> list:
+        """Список проектов сотрудника. Для обратной совместимости."""
+        return [er.project for er in self.project_roles]
+
+    @property
+    def roles(self) -> list[str]:
+        """Уникальные роли сотрудника по всем проектам."""
+        seen = []
+        for er in self.project_roles:
+            if er.role and er.role not in seen:
+                seen.append(er.role)
+        return seen
 
     def __repr__(self):
         return f"<Employee {self.name}>"
