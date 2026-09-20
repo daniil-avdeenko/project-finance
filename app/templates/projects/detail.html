@@ -3,6 +3,7 @@
 {% block title %}{{ project.name }}{% endblock %}
 
 {% block content %}
+{% set back_url = request.args.get('next') or url_for('main.projects_list') %}
 <div class="d-flex justify-content-between align-items-start mb-4 gap-3">
     <div class="flex-grow-1" style="min-width: 0;">
         <h1 class="project-title mb-2">
@@ -15,17 +16,17 @@
         <a href="{{ url_for('main.project_edit', project_id=project.id, next=request.path) }}" class="btn btn-outline-secondary me-2">
             <i class="fas fa-pen me-1"></i>Редактировать
         </a>
-        <form method="post" action="{{ url_for('main.project_delete', project_id=project.id, next=request.path) }}"
+                <form method="post" action="{{ url_for('main.project_delete', project_id=project.id, next=back_url) }}"
               style="display:inline;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="button" class="btn btn-outline-danger"
-                    data-delete-url="{{ url_for('main.project_delete', project_id=project.id, next=request.path) }}"
+                    data-delete-url="{{ url_for('main.project_delete', project_id=project.id, next=back_url) }}"
                     data-delete-name="{{ project.name }}">
                 <i class="fas fa-trash me-1"></i>Удалить
             </button>
         </form>
         {% endif %}
-        <a href="{{ url_for('main.projects_list') }}" class="btn btn-outline-secondary ms-2">← Назад</a>
+        <a href="{{ back_url }}" class="btn btn-outline-secondary ms-2">← Назад</a>
     </div>
 </div>
 
