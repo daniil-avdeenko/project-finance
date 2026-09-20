@@ -25,7 +25,6 @@ class ProjectForm(FlaskForm):
 
 class EmployeeForm(FlaskForm):
     name = StringField("ФИО сотрудника", validators=[DataRequired()])
-    position = StringField("Должность", validators=[Optional()])
     phone = StringField("Телефон", validators=[Optional()])
     email = StringField("Email", validators=[Optional()])
 

@@ -1,4 +1,5 @@
 import csv
+import json
 from io import StringIO
 
 from flask import flash, render_template, request, url_for
@@ -8,36 +9,60 @@ from app import db
 from app.decorators import admin_required
 from app.forms import EmployeeForm
 from app.helpers import get_next_url, make_csv_response, safe_redirect
-from app.models import Employee, Project
+from app.models import Employee, EmployeeProject, Project
 from app.routes.blueprint import main_bp
 
 
-def parse_project_ids(project_ids_str):
+def parse_project_roles(project_roles_json: str) -> list[dict]:
     """
-    Преобразует строку с ID проектов (разделённых запятыми) в список целых чисел.
-    Игнорирует пустые и нечисловые значения.
+    Разбирает JSON со списком привязок сотрудника к проектам.
+
+    Ожидаемый формат: '[{"project_id": 1, "role": "Разработчик"}, ...]'
+    Возвращает список словарей. Игнорирует некорректные элементы и пустые роли.
     """
-    if not project_ids_str:
+    if not project_roles_json:
         return []
-    ids = []
-    for part in project_ids_str.split(","):
-        part = part.strip()
-        if part.isdigit():
-            ids.append(int(part))
-    return ids
+    try:
+        data = json.loads(project_roles_json)
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+    if not isinstance(data, list):
+        return []
+
+    result = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        project_id = item.get("project_id")
+        role = (item.get("role") or "").strip()
+        if not isinstance(project_id, int) or not role:
+            continue
+        result.append({"project_id": project_id, "role": role})
+    return result
 
 
 @main_bp.route("/employees")
 @login_required
 def employees_list():
     """
-    Список сотрудников с фильтрацией по должности и сортировкой.
+    Список сотрудников с фильтрацией по роли на проекте и сортировкой.
+
+    Фильтр по роли: оставляет сотрудников, у которых есть эта роль
+    хотя бы на одном проекте. Список ролей — уникальные значения из
+    EmployeeProject.role.
     """
     query = Employee.query
 
-    position = request.args.get("position")
-    if position:
-        query = query.filter(Employee.position == position)
+    role_filter = request.args.get("role")
+    if role_filter:
+        subq = (
+            db.session.query(EmployeeProject.employee_id)
+            .filter(EmployeeProject.role == role_filter)
+            .distinct()
+            .subquery()
+        )
+        query = query.filter(Employee.id.in_(db.session.query(subq.c.employee_id)))
 
     employees = query.all()
 
@@ -47,12 +72,19 @@ def employees_list():
     elif sort == "name_desc":
         employees.sort(key=lambda e: e.name, reverse=True)
     elif sort == "projects_asc":
-        employees.sort(key=lambda e: len(e.projects))
+        employees.sort(key=lambda e: len(e.project_roles))
     elif sort == "projects_desc":
-        employees.sort(key=lambda e: len(e.projects), reverse=True)
+        employees.sort(key=lambda e: len(e.project_roles), reverse=True)
 
-    positions = db.session.query(Employee.position).distinct().all()
-    positions = [p[0] for p in positions if p[0]]
+    roles = (
+        db.session.query(EmployeeProject.role)
+        .filter(EmployeeProject.role.isnot(None))
+        .filter(EmployeeProject.role != "")
+        .distinct()
+        .order_by(EmployeeProject.role)
+        .all()
+    )
+    roles = [r[0] for r in roles if r[0]]
 
     sort_options = [
         {"value": "name_asc", "label": "ФИО А–Я", "selected": sort == "name_asc"},
@@ -72,8 +104,8 @@ def employees_list():
     return render_template(
         "employees/list.html",
         employees=employees,
-        positions=positions,
-        selected_position=position,
+        roles=roles,
+        selected_role=role_filter,
         sort_options=sort_options,
     )
 
@@ -100,15 +132,27 @@ def employee_create():
     if request.method == "POST" and form.validate_on_submit():
         employee = Employee(
             name=form.name.data,
-            position=form.position.data,
             phone=form.phone.data,
             email=form.email.data,
         )
-        project_ids = parse_project_ids(request.form.get("project_ids", ""))
-        employee.projects = Project.active().filter(Project.id.in_(project_ids)).all()
 
+        project_roles = parse_project_roles(request.form.get("project_roles", ""))
         try:
             db.session.add(employee)
+            db.session.flush()  # получаем employee.id
+
+            for pr in project_roles:
+                project = Project.active().filter_by(id=pr["project_id"]).first()
+                if not project:
+                    continue
+                db.session.add(
+                    EmployeeProject(
+                        employee_id=employee.id,
+                        project_id=project.id,
+                        role=pr["role"],
+                    )
+                )
+
             db.session.commit()
             flash("Сотрудник добавлен!", "success")
             return safe_redirect(default_url)
@@ -116,10 +160,20 @@ def employee_create():
             db.session.rollback()
             flash(f"Ошибка при сохранении: {str(e)}", "danger")
 
+    all_roles = (
+        db.session.query(EmployeeProject.role)
+        .filter(EmployeeProject.role != "")
+        .distinct()
+        .order_by(EmployeeProject.role)
+        .all()
+    )
+    all_roles = [r[0] for r in all_roles]
+
     return render_template(
         "employees/create.html",
         form=form,
         all_projects=Project.active().all(),
+        all_roles=all_roles,
         next_url=next_url,
     )
 
@@ -128,36 +182,58 @@ def employee_create():
 @login_required
 @admin_required
 def employee_edit(employee_id):
-    """
-    Редактирование сотрудника (доступно только администраторам).
-    """
+    """Редактирование сотрудника (только для админов)."""
     employee = Employee.query.get_or_404(employee_id)
     form = EmployeeForm(obj=employee)
     default_url = url_for("main.employee_detail", employee_id=employee.id)
     next_url = get_next_url(default_url)
 
-    employee_projects_json = [{"id": p.id, "name": p.name} for p in employee.projects]
-
     if request.method == "GET":
+        current_roles = [
+            {"project_id": er.project_id, "role": er.role} for er in employee.project_roles
+        ]
+        all_roles = (
+            db.session.query(EmployeeProject.role)
+            .filter(EmployeeProject.role != "")
+            .distinct()
+            .order_by(EmployeeProject.role)
+            .all()
+        )
+        all_roles = [r[0] for r in all_roles]
+
         return render_template(
             "employees/edit.html",
             form=form,
             employee=employee,
             all_projects=Project.active().all(),
-            employee_projects_json=employee_projects_json,
+            all_roles=all_roles,
+            current_project_roles=current_roles,
             next_url=next_url,
         )
 
     if request.method == "POST" and form.validate_on_submit():
         employee.name = form.name.data
-        employee.position = form.position.data
         employee.phone = form.phone.data
         employee.email = form.email.data
 
-        project_ids = parse_project_ids(request.form.get("project_ids", ""))
-        employee.projects = Project.active().filter(Project.id.in_(project_ids)).all()
+        project_roles = parse_project_roles(request.form.get("project_roles", ""))
 
         try:
+            # Удаляем старые привязки и создаём новые
+            EmployeeProject.query.filter_by(employee_id=employee.id).delete()
+
+            for pr in project_roles:
+                project = Project.active().filter_by(id=pr["project_id"]).first()
+                if not project:
+                    continue
+                db.session.add(
+                    EmployeeProject(
+                        employee_id=employee.id,
+                        project_id=project.id,
+                        role=pr["role"],
+                    )
+                )
+
             db.session.commit()
             flash("Сотрудник обновлён", "success")
             return safe_redirect(default_url)
@@ -165,12 +241,26 @@ def employee_edit(employee_id):
             db.session.rollback()
             flash(f"Ошибка при обновлении: {str(e)}", "danger")
 
+    # Fallback при ошибке валидации
+    current_roles = [
+        {"project_id": er.project_id, "role": er.role} for er in employee.project_roles
+    ]
+    all_roles = (
+        db.session.query(EmployeeProject.role)
+        .filter(EmployeeProject.role != "")
+        .distinct()
+        .order_by(EmployeeProject.role)
+        .all()
+    )
+    all_roles = [r[0] for r in all_roles]
+
     return render_template(
         "employees/edit.html",
         form=form,
         employee=employee,
         all_projects=Project.active().all(),
-        employee_projects_json=employee_projects_json,
+        all_roles=all_roles,
+        current_project_roles=current_roles,
         next_url=next_url,
     )
 
@@ -194,23 +284,20 @@ def employee_delete(employee_id):
 @main_bp.route("/employees/export")
 @login_required
 def export_employees_csv():
-    """
-    Экспорт всех сотрудников в CSV-файл.
-    """
+    """Экспорт всех сотрудников в CSV."""
     employees = Employee.query.all()
     si = StringIO()
     writer = csv.writer(si, delimiter=";", quoting=csv.QUOTE_MINIMAL)
-    writer.writerow(["ID", "ФИО", "Должность", "Телефон", "Email", "Проекты"])
+    writer.writerow(["ID", "ФИО", "Телефон", "Email", "Проекты и роли"])
     for emp in employees:
-        projects_names = ", ".join([p.name for p in emp.projects])
+        project_roles = "; ".join(f"{er.project.name} — {er.role}" for er in emp.project_roles)
         writer.writerow(
             [
                 emp.id,
                 emp.name,
-                emp.position or "",
                 emp.phone or "",
                 emp.email or "",
-                projects_names,
+                project_roles,
             ]
         )
     csv_content = si.getvalue()
