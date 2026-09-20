@@ -13,7 +13,7 @@
         {{ form.name.label(class="form-label") }}
         {{ form.name(class="form-control") }}
         {% for error in form.name.errors %}
-            <div class="text-danger">{{ error }}</div>
+        <div class="text-danger">{{ error }}</div>
         {% endfor %}
     </div>
 
@@ -43,13 +43,29 @@
                 </select>
             </div>
             <div class="col-md-5">
-                <input type="text" id="roleInput" class="form-control" list="roleOptions"
-                       placeholder="Роль на проекте (например, Разработчик)">
-                <datalist id="roleOptions">
-                    {% for role in all_roles %}
-                    <option value="{{ role }}"></option>
-                    {% endfor %}
-                </datalist>
+                <div class="input-group">
+                    <input type="text" id="roleInput" class="form-control"
+                           placeholder="Роль на проекте" autocomplete="off">
+                    <button class="btn btn-outline-secondary" type="button"
+                            id="roleDropdownBtn" aria-expanded="false"
+                            title="Показать список ролей">
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" id="roleDropdownMenu"
+                        style="max-height: 280px; overflow-y: auto; min-width: 220px;">
+                        {% for role in all_roles %}
+                        <li>
+                            <button type="button" class="dropdown-item role-option"
+                                    data-role="{{ role }}">{{ role }}
+                            </button>
+                        </li>
+                        {% else %}
+                        <li><span class="dropdown-item-text text-muted small">
+                            Пока нет сохранённых ролей
+                        </span></li>
+                        {% endfor %}
+                    </ul>
+                </div>
             </div>
             <div class="col-md-2">
                 <button type="button" class="btn btn-primary w-100" id="addProjectBtn">
@@ -185,6 +201,86 @@
             roleInput.value = '';
             render();
         }
+
+                // ===== DROPDOWN ВЫБОРА РОЛИ С AJAX-ОБНОВЛЕНИЕМ =====
+        const roleDropdownBtn = document.getElementById('roleDropdownBtn');
+        const roleDropdownMenu = document.getElementById('roleDropdownMenu');
+        const bsDropdown = bootstrap.Dropdown.getOrCreateInstance(roleDropdownBtn);
+
+        // Флаг: значение пришло из списка (а не набрано вручную).
+        // При клике на input такое значение очищается, чтобы не мешало.
+        let pickedFromList = false;
+
+        function renderRoleOptions(roles) {
+            roleDropdownMenu.innerHTML = '';
+            if (!roles.length) {
+                const li = document.createElement('li');
+                li.innerHTML = '<span class="dropdown-item-text text-muted small">' +
+                    'Пока нет сохранённых ролей</span>';
+                roleDropdownMenu.appendChild(li);
+                return;
+            }
+            roles.forEach(role => {
+                const li = document.createElement('li');
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'dropdown-item role-option';
+                btn.dataset.role = role;
+                btn.textContent = role;
+                btn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    roleInput.value = role;
+                    pickedFromList = true;
+                    bsDropdown.hide();
+                });
+                li.appendChild(btn);
+                roleDropdownMenu.appendChild(li);
+            });
+        }
+
+        // Клик по кнопке со стрелкой — подтянуть актуальные роли и открыть/закрыть
+        roleDropdownBtn.addEventListener('click', async function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            try {
+                const resp = await fetch('{{ url_for("main.api_roles") }}');
+                if (resp.ok) {
+                    const roles = await resp.json();
+                    renderRoleOptions(roles);
+                }
+            } catch (err) {
+                console.warn('Не удалось обновить список ролей:', err);
+            }
+
+            bsDropdown.toggle();
+        });
+
+                // Клик по полю ввода: закрывает dropdown и очищает значение из списка
+        roleInput.addEventListener('click', function (e) {
+            e.stopPropagation();
+            bsDropdown.hide();
+            if (pickedFromList) {
+                this.value = '';
+                pickedFromList = false;
+            }
+        });
+
+        // Ручной ввод сбрасывает флаг "из списка"
+        roleInput.addEventListener('input', function () {
+            pickedFromList = false;
+        });
+
+        // Клик вне области (кнопка + меню + input) — закрыть dropdown
+        document.addEventListener('click', function (e) {
+            const insideButton = roleDropdownBtn.contains(e.target);
+            const insideMenu = roleDropdownMenu.contains(e.target);
+            const insideInput = roleInput.contains(e.target);
+
+            if (!insideButton && !insideMenu && !insideInput) {
+                bsDropdown.hide();
+            }
+        });
 
         addBtn.addEventListener('click', addEntry);
         render();

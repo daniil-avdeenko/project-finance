@@ -2,7 +2,7 @@ import csv
 import json
 from io import StringIO
 
-from flask import flash, render_template, request, url_for
+from flask import flash, jsonify, render_template, request, url_for
 from flask_login import login_required
 
 from app import db
@@ -303,3 +303,24 @@ def export_employees_csv():
     csv_content = si.getvalue()
     si.close()
     return make_csv_response(csv_content, "employees_export.csv")
+
+
+@main_bp.route("/api/roles")
+@login_required
+@admin_required
+def api_roles():
+    """
+    API: возвращает список всех уникальных ролей из EmployeeProject.
+
+    Используется формой сотрудника для обновления dropdown ролей
+    по клику — чтобы новые роли появлялись без перезагрузки страницы.
+    """
+    roles = (
+        db.session.query(EmployeeProject.role)
+        .filter(EmployeeProject.role.isnot(None))
+        .filter(EmployeeProject.role != "")
+        .distinct()
+        .order_by(EmployeeProject.role)
+        .all()
+    )
+    return jsonify([r[0] for r in roles if r[0]])
