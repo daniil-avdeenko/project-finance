@@ -191,39 +191,52 @@ def test_deleted_project_not_in_dashboard(auth_client, app):
 
 
 def test_edit_employee_with_projects(auth_client, app):
-    """Редактирование сотрудника с привязкой проектов через project_ids."""
+    """Редактирование сотрудника с привязкой проектов через project_roles."""
+    import json
+
     with app.app_context():
         project1 = Project(name="Проект 1")
         project2 = Project(name="Проект 2")
-        employee = Employee(name="Петров Пётр Петрович", position="Разработчик")
+        employee = Employee(name="Петров Пётр Петрович")
         _db.session.add_all([project1, project2, employee])
         _db.session.commit()
         emp_id = employee.id
         p1_id, p2_id = project1.id, project2.id
 
+    project_roles = json.dumps(
+        [
+            {"project_id": p1_id, "role": "Разработчик"},
+            {"project_id": p2_id, "role": "Тимлид"},
+        ]
+    )
+
     response = auth_client.post(
         f"/employees/{emp_id}/edit",
         data={
             "name": "Петров Пётр Петрович",
-            "position": "Старший разработчик",
             "phone": "+79990000000",
             "email": "petrov@test.ru",
-            "project_ids": f"{p1_id},{p2_id}",
+            "project_roles": project_roles,
         },
         follow_redirects=True,
     )
     assert response.status_code == 200
 
     with app.app_context():
+        from app.models import EmployeeProject
+
         updated = _db.session.get(Employee, emp_id)
-        assert len(updated.projects) == 2
-        assert updated.position == "Старший разработчик"
+        assert len(updated.project_roles) == 2
+        roles = {er.project_id: er.role for er in updated.project_roles}
+        assert roles[p1_id] == "Разработчик"
+        assert roles[p2_id] == "Тимлид"
+        assert EmployeeProject.query.count() == 2
 
 
 def test_delete_employee(auth_client, app):
     """Удаление сотрудника работает."""
     with app.app_context():
-        employee = Employee(name="Иванов Иван Иванович", position="Разработчик")
+        employee = Employee(name="Иванов Иван Иванович")
         _db.session.add(employee)
         _db.session.commit()
         emp_id = employee.id
@@ -233,6 +246,96 @@ def test_delete_employee(auth_client, app):
 
     with app.app_context():
         assert _db.session.get(Employee, emp_id) is None
+
+
+def test_create_employee_with_project_roles(auth_client, app):
+    """Создание сотрудника с привязкой проектов и ролями через project_roles."""
+    import json
+
+    with app.app_context():
+        project = Project(name="CRM")
+        _db.session.add(project)
+        _db.session.commit()
+        p_id = project.id
+
+    project_roles = json.dumps([{"project_id": p_id, "role": "Разработчик"}])
+
+    response = auth_client.post(
+        "/employees/create",
+        data={
+            "name": "Новый Сотрудник",
+            "phone": "+79990000001",
+            "email": "new@test.ru",
+            "project_roles": project_roles,
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+
+    with app.app_context():
+        emp = Employee.query.filter_by(name="Новый Сотрудник").first()
+        assert emp is not None
+        assert len(emp.project_roles) == 1
+        assert emp.project_roles[0].role == "Разработчик"
+        assert emp.project_roles[0].project_id == p_id
+
+
+def test_create_employee_skips_entries_without_role(auth_client, app):
+    """Записи без роли игнорируются при создании."""
+    import json
+
+    with app.app_context():
+        project = Project(name="CRM")
+        _db.session.add(project)
+        _db.session.commit()
+        p_id = project.id
+
+    project_roles = json.dumps(
+        [
+            {"project_id": p_id, "role": ""},  # пустая роль — пропускается
+            {"project_id": p_id, "role": "  "},  # пробелы — пропускается
+        ]
+    )
+
+    auth_client.post(
+        "/employees/create",
+        data={
+            "name": "Без Роли",
+            "project_roles": project_roles,
+        },
+        follow_redirects=True,
+    )
+
+    with app.app_context():
+        emp = Employee.query.filter_by(name="Без Роли").first()
+        assert emp is not None
+        assert len(emp.project_roles) == 0
+
+
+def test_employee_list_filters_by_role(auth_client, app):
+    """Фильтр по роли оставляет только сотрудников с этой ролью."""
+    with app.app_context():
+        p = Project(name="P")
+        e1 = Employee(name="Разработчик Иванов")
+        e2 = Employee(name="Тимлид Петров")
+        _db.session.add_all([p, e1, e2])
+        _db.session.commit()
+
+        from app.models import EmployeeProject
+
+        _db.session.add_all(
+            [
+                EmployeeProject(employee_id=e1.id, project_id=p.id, role="Разработчик"),
+                EmployeeProject(employee_id=e2.id, project_id=p.id, role="Тимлид"),
+            ]
+        )
+        _db.session.commit()
+
+    response = auth_client.get("/employees?role=Разработчик")
+    text = response.get_data(as_text=True)
+
+    assert "Разработчик Иванов" in text
+    assert "Тимлид Петров" not in text
 
 
 # ============================================================
