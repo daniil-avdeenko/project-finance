@@ -47,7 +47,7 @@
     {% for employee in employees %}
     <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center employee-row"
          style="cursor: pointer; transition: 0.2s; padding: 1rem 1.25rem;"
-         data-url="{{ url_for('main.employee_detail', employee_id=employee.id) }}">
+         data-url="{{ url_for('main.employee_detail', employee_id=employee.id, next=request.full_path.rstrip('?')) }}">
 
         <div class="flex-grow-1 me-3">
             <div class="d-flex flex-wrap align-items-center gap-2">

@@ -3,6 +3,7 @@
 {% block title %}{{ employee.name }}{% endblock %}
 
 {% block content %}
+{% set back_url = request.args.get('next') or url_for('main.employees_list') %}
 <div class="d-flex justify-content-between align-items-start mb-4">
     <h1>👤 {{ employee.name }}</h1>
     <div>
@@ -10,17 +11,17 @@
         <a href="{{ url_for('main.employee_edit', employee_id=employee.id, next=request.path) }}" class="btn btn-outline-secondary me-2">
             <i class="fas fa-pen me-1"></i>Редактировать
         </a>
-        <form method="post" action="{{ url_for('main.employee_delete', employee_id=employee.id, next=request.path) }}"
+        <form method="post" action="{{ url_for('main.employee_delete', employee_id=employee.id, next=back_url) }}"
               style="display:inline;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="button" class="btn btn-outline-danger"
-                    data-delete-url="{{ url_for('main.employee_delete', employee_id=employee.id, next=request.path) }}"
+                    data-delete-url="{{ url_for('main.employee_delete', employee_id=employee.id, next=back_url) }}"
                     data-delete-name="{{ employee.name }}">
                 <i class="fas fa-trash me-1"></i>Удалить
             </button>
         </form>
         {% endif %}
-        <a href="{{ url_for('main.employees_list') }}" class="btn btn-outline-secondary ms-2">← Назад</a>
+        <a href="{{ back_url }}" class="btn btn-outline-secondary ms-2">← Назад</a>
     </div>
 </div>
 
