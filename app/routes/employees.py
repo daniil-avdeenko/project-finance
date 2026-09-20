@@ -1,5 +1,4 @@
 import csv
-import json
 from io import StringIO
 
 from flask import flash, render_template, request, url_for
@@ -137,9 +136,7 @@ def employee_edit(employee_id):
     default_url = url_for("main.employee_detail", employee_id=employee.id)
     next_url = get_next_url(default_url)
 
-    employee_projects_json = json.dumps(
-        [{"id": p.id, "name": p.name} for p in employee.projects], ensure_ascii=False
-    )
+    employee_projects_json = [{"id": p.id, "name": p.name} for p in employee.projects]
 
     if request.method == "GET":
         return render_template(
