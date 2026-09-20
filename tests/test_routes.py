@@ -338,6 +338,63 @@ def test_employee_list_filters_by_role(auth_client, app):
     assert "Тимлид Петров" not in text
 
 
+def test_api_roles_returns_unique_roles(auth_client, app):
+    """API /api/roles возвращает уникальные роли."""
+    with app.app_context():
+        p = Project(name="P")
+        e1 = Employee(name="A")
+        e2 = Employee(name="B")
+        _db.session.add_all([p, e1, e2])
+        _db.session.commit()
+
+        from app.models import EmployeeProject
+
+        _db.session.add_all(
+            [
+                EmployeeProject(employee_id=e1.id, project_id=p.id, role="Разработчик"),
+                EmployeeProject(employee_id=e2.id, project_id=p.id, role="Тимлид"),
+            ]
+        )
+        _db.session.commit()
+
+    response = auth_client.get("/api/roles")
+    assert response.status_code == 200
+
+    data = response.get_json()
+    assert isinstance(data, list)
+    assert "Разработчик" in data
+    assert "Тимлид" in data
+
+
+def test_api_roles_updates_after_new_role(auth_client, app):
+    """После создания сотрудника с новой ролью API возвращает её."""
+    import json
+
+    with app.app_context():
+        p = Project(name="P")
+        _db.session.add(p)
+        _db.session.commit()
+        p_id = p.id
+
+    # Изначально ролей нет
+    response = auth_client.get("/api/roles")
+    assert response.get_json() == []
+
+    # Создаём сотрудника с новой ролью
+    auth_client.post(
+        "/employees/create",
+        data={
+            "name": "Маркетолог Тестов",
+            "project_roles": json.dumps([{"project_id": p_id, "role": "Маркетолог"}]),
+        },
+        follow_redirects=True,
+    )
+
+    # Теперь роль есть в API
+    response = auth_client.get("/api/roles")
+    assert "Маркетолог" in response.get_json()
+
+
 # ============================================================
 #   CRUD ТРАНЗАКЦИЙ
 # ============================================================
