@@ -7,15 +7,13 @@
 
 <form method="post">
     {{ form.hidden_tag() }}
+    <input type="hidden" name="next" value="{{ next_url }}">
+
     <div class="mb-3">
         {{ form.name.label(class="form-label") }}
         {{ form.name(class="form-control") }}
     </div>
     <button type="submit" class="btn btn-success">💾 Сохранить</button>
-    {% if category.__class__.__name__ == 'IncomeCategory' %}
-        <a href="{{ url_for('main.income_categories_list') }}" class="btn btn-secondary">Отмена</a>
-    {% else %}
-        <a href="{{ url_for('main.expense_categories_list') }}" class="btn btn-secondary">Отмена</a>
-    {% endif %}
+    <a href="{{ next_url }}" class="btn btn-secondary">Отмена</a>
 </form>
 {% endblock %}

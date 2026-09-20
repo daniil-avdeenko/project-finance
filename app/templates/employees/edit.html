@@ -7,6 +7,7 @@
 
 <form method="post">
     {{ form.hidden_tag() }}
+    <input type="hidden" name="next" value="{{ next_url }}">
 
     <div class="mb-3">
         {{ form.name.label(class="form-label") }}
@@ -50,7 +51,7 @@
     </div>
 
     <button type="submit" class="btn btn-success">💾 Сохранить</button>
-    <a href="{{ url_for('main.employees_list') }}" class="btn btn-secondary">Отмена</a>
+    <a href="{{ next_url }}" class="btn btn-secondary">Отмена</a>
 </form>
 
 <!-- Скрытый элемент для хранения данных о проектах -->
@@ -63,7 +64,6 @@
         const addBtn = document.getElementById('addProjectBtn');
         const projectIdsInput = document.getElementById('projectIds');
 
-        // Получаем данные из data-атрибута и парсим JSON
         const projectsDataElement = document.getElementById('employeeProjectsData');
         const currentProjects = JSON.parse(projectsDataElement.dataset.projects || '[]');
         let selectedProjects = currentProjects.map(p => p.id);

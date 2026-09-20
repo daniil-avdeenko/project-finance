@@ -18,15 +18,15 @@
         <span class="text-truncate" style="max-width: 70%;" title="{{ cat.name }}">{{ cat.name }}</span>
         {% if current_user.is_admin() %}
         <div class="flex-shrink-0">
-            <a href="{{ url_for('main.expense_category_edit', category_id=cat.id) }}"
+            <a href="{{ url_for('main.expense_category_edit', category_id=cat.id, next=request.path) }}"
                class="btn btn-sm btn-outline-secondary me-1" title="Редактировать">
                 <i class="fas fa-pen"></i>
             </a>
-            <form method="post" action="{{ url_for('main.expense_category_delete', category_id=cat.id) }}"
+            <form method="post" action="{{ url_for('main.expense_category_delete', category_id=cat.id, next=request.path) }}"
                   style="display:inline;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="button" class="btn btn-sm btn-outline-danger"
-                        data-delete-url="{{ url_for('main.expense_category_delete', category_id=cat.id) }}"
+                        data-delete-url="{{ url_for('main.expense_category_delete', category_id=cat.id, next=request.path) }}"
                         data-delete-name="{{ cat.name }}"
                         title="Удалить">
                     <i class="fas fa-trash"></i>
