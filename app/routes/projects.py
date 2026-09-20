@@ -5,19 +5,14 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from io import StringIO
 
-from flask import flash, redirect, render_template, request, url_for
-from flask_login import current_user, login_required
+from flask import flash, render_template, request, url_for
+from flask_login import login_required
 
 from app import db
 from app.decorators import admin_required
 from app.forms import ProjectForm
-from app.helpers import (
-    get_next_url,
-    make_csv_response,
-    parse_ids_from_string,
-    safe_redirect,
-)
-from app.models import Employee, ExpenseCategory, IncomeCategory, Project, Transaction
+from app.helpers import get_next_url, make_csv_response, safe_redirect
+from app.models import EmployeeProject, ExpenseCategory, IncomeCategory, Project, Transaction
 from app.routes.blueprint import main_bp
 from app.services.currency_service import get_rates_map
 from app.services.project_stats import ProjectStatsService
@@ -168,34 +163,20 @@ def project_create():
     return render_template("projects/create.html", form=form, next_url=next_url)
 
 
-@main_bp.route("/projects/<int:project_id>", methods=["GET", "POST"])
+@main_bp.route("/projects/<int:project_id>")
 @login_required
 def project_detail(project_id):
     """
     Детальная страница проекта.
     Удалённые проекты недоступны (404).
-    Если запрос POST и пользователь админ – обновляет список сотрудников.
     """
     project = Project.active().filter_by(id=project_id).first_or_404()
-
-    if request.method == "POST" and current_user.is_admin():
-        employee_ids = parse_ids_from_string(request.form.get("employee_ids", ""))
-        employees = Employee.query.filter(Employee.id.in_(employee_ids)).all()
-        project.employees = employees
-        try:
-            db.session.commit()
-            flash("Список сотрудников обновлён", "success")
-        except Exception as e:
-            db.session.rollback()
-            flash(f"Ошибка при сохранении: {str(e)}", "danger")
-        return redirect(url_for("main.project_detail", project_id=project.id))
 
     transactions = (
         project.transactions.filter_by(is_deleted=False).order_by(Transaction.date.desc()).all()
     )
     income_categories = {c.id: c.name for c in IncomeCategory.query.all()}
     expense_categories = {c.id: c.name for c in ExpenseCategory.query.all()}
-    all_employees = Employee.query.all()
 
     return render_template(
         "projects/detail.html",
@@ -203,7 +184,6 @@ def project_detail(project_id):
         transactions=transactions,
         income_categories=income_categories,
         expense_categories=expense_categories,
-        all_employees=all_employees,
     )
 
 
@@ -238,7 +218,8 @@ def project_delete(project_id):
     project = Project.query.get_or_404(project_id)
     try:
         project.is_deleted = True
-        project.employees = []  # отвязываем сотрудников
+        # Связи с сотрудниками — удаляем (при soft delete каскад FK не срабатывает)
+        EmployeeProject.query.filter_by(project_id=project.id).delete()
         db.session.commit()
         flash("Проект удалён", "warning")
     except Exception as e:
