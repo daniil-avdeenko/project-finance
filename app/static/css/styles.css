@@ -125,3 +125,27 @@ body {
 .modal-body {
     overflow-wrap: anywhere;
 }
+/* Карточки проектов на дашборде: одинаковая высота, ограничение строк */
+.project-card {
+    min-height: 230px;
+    width: 100%;
+}
+
+.project-card .card-title {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    /* Резерв под 2 строки — заголовки выравниваются даже если текст короткий */
+    min-height: 3rem;
+    line-height: 1.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.project-card .card-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    /* flex-grow-1 заполняет пространство, line-clamp режет длинный текст */
+}

@@ -111,12 +111,12 @@
     <h3><i class="fas fa-list me-2"></i>Проекты</h3>
 </div>
 <div class="row g-4">
-    {% for project in projects_stats %}
+        {% for project in projects_stats %}
     <div class="col-md-4 col-sm-6 d-flex align-items-stretch">
-        <div class="card h-100">
+        <div class="card h-100 project-card">
             <div class="card-body d-flex flex-column">
-                <h5 class="card-title">{{ project.name }}</h5>
-                <p class="card-text text-muted flex-grow-1">{{ project.description or 'Без описания' }}</p>
+                <h5 class="card-title" title="{{ project.name }}">{{ project.name }}</h5>
+                <p class="card-text text-muted flex-grow-1" title="{{ project.description or '' }}">{{ project.description or 'Без описания' }}</p>
                 <div class="d-flex justify-content-between mt-3">
                     <span class="badge bg-success"><i class="fas fa-ruble-sign me-1"></i>{{ project.profit|money }}</span>
                     <span class="badge bg-info"><i class="fas fa-percent me-1"></i>{{ "{:.1f}".format(project.profitability) }}%</span>
