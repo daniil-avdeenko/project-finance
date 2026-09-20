@@ -8,7 +8,7 @@ from flask_login import login_required
 from app import db
 from app.decorators import admin_required
 from app.forms import TransactionForm
-from app.helpers import make_csv_response
+from app.helpers import get_next_url, make_csv_response, safe_redirect
 from app.models import ExpenseCategory, IncomeCategory, Project, Transaction
 from app.routes.blueprint import main_bp
 
@@ -129,6 +129,8 @@ def transaction_create():
     """
     form = TransactionForm()
     form.project_id.choices = [(p.id, p.name) for p in Project.active().all()]
+    default_url = url_for("main.transactions_list")
+    next_url = get_next_url(default_url)
 
     if request.method == "POST":
         t = request.form.get("type")
@@ -148,6 +150,7 @@ def transaction_create():
                     form=form,
                     income_categories=IncomeCategory.query.all(),
                     expense_categories=ExpenseCategory.query.all(),
+                    next_url=next_url,
                 )
 
             tx_date = form.date.data
@@ -169,7 +172,7 @@ def transaction_create():
                 db.session.add(transaction)
                 db.session.commit()
                 flash("Транзакция добавлена", "success")
-                return redirect(url_for("main.transactions_list"))
+                return safe_redirect(default_url)
             except Exception as e:
                 db.session.rollback()
                 flash(f"Ошибка при сохранении: {str(e)}", "danger")
@@ -183,6 +186,7 @@ def transaction_create():
         form=form,
         income_categories=IncomeCategory.query.all(),
         expense_categories=ExpenseCategory.query.all(),
+        next_url=next_url,
     )
 
 
@@ -197,6 +201,8 @@ def transaction_edit(transaction_id):
     transaction = Transaction.active().filter_by(id=transaction_id).first_or_404()
     form = TransactionForm(obj=transaction)
     form.project_id.choices = [(p.id, p.name) for p in Project.active().all()]
+    default_url = url_for("main.transactions_list")
+    next_url = get_next_url(default_url)
 
     if request.method == "GET":
         form.type.data = transaction.type
@@ -228,6 +234,7 @@ def transaction_edit(transaction_id):
                     transaction=transaction,
                     income_categories=IncomeCategory.query.all(),
                     expense_categories=ExpenseCategory.query.all(),
+                    next_url=next_url,
                 )
 
             transaction.type = form.type.data
@@ -244,7 +251,7 @@ def transaction_edit(transaction_id):
             try:
                 db.session.commit()
                 flash("Транзакция обновлена", "success")
-                return redirect(url_for("main.transactions_list"))
+                return safe_redirect(default_url)
             except Exception as e:
                 db.session.rollback()
                 flash(f"Ошибка при обновлении: {str(e)}", "danger")
@@ -259,6 +266,7 @@ def transaction_edit(transaction_id):
         transaction=transaction,
         income_categories=IncomeCategory.query.all(),
         expense_categories=ExpenseCategory.query.all(),
+        next_url=next_url,
     )
 
 
@@ -277,7 +285,7 @@ def transaction_delete(transaction_id):
     except Exception as e:
         db.session.rollback()
         flash(f"Ошибка при удалении: {str(e)}", "danger")
-    return redirect(url_for("main.transactions_list"))
+    return safe_redirect(url_for("main.transactions_list"))
 
 
 @main_bp.route("/transactions/export")
