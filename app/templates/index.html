@@ -48,7 +48,7 @@
         <a href="{{ url_for('main.chart') }}" class="btn btn-outline-primary btn-sm">
             <i class="fas fa-chart-line me-1"></i>График
         </a>
-        <a href="{{ url_for('main.project_create') }}" class="btn btn-primary btn-sm">
+        <a href="{{ url_for('main.project_create', next=request.path) }}" class="btn btn-primary btn-sm">
             <i class="fas fa-plus me-1"></i>Проект
         </a>
     </div>
