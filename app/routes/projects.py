@@ -11,7 +11,12 @@ from flask_login import current_user, login_required
 from app import db
 from app.decorators import admin_required
 from app.forms import ProjectForm
-from app.helpers import make_csv_response, parse_ids_from_string
+from app.helpers import (
+    get_next_url,
+    make_csv_response,
+    parse_ids_from_string,
+    safe_redirect,
+)
 from app.models import Employee, ExpenseCategory, IncomeCategory, Project, Transaction
 from app.routes.blueprint import main_bp
 from app.services.currency_service import get_rates_map
@@ -147,17 +152,20 @@ def projects_list():
 def project_create():
     """Создание нового проекта (только для админов)."""
     form = ProjectForm()
+    default_url = url_for("main.projects_list")
+    next_url = get_next_url(default_url)
+
     if form.validate_on_submit():
         project = Project(name=form.name.data, description=form.description.data)
         try:
             db.session.add(project)
             db.session.commit()
             flash("Проект успешно создан!", "success")
-            return redirect(url_for("main.projects_list"))
+            return safe_redirect(default_url)
         except Exception as e:
             db.session.rollback()
             flash(f"Ошибка при создании проекта: {str(e)}", "danger")
-    return render_template("projects/create.html", form=form)
+    return render_template("projects/create.html", form=form, next_url=next_url)
 
 
 @main_bp.route("/projects/<int:project_id>", methods=["GET", "POST"])
@@ -203,20 +211,23 @@ def project_detail(project_id):
 @login_required
 @admin_required
 def project_edit(project_id):
-    """Редактирование проекта (только для админов). Удалённые недоступны."""
+    """Редактирование проекта (только для админов)."""
     project = Project.active().filter_by(id=project_id).first_or_404()
     form = ProjectForm(obj=project)
+    default_url = url_for("main.project_detail", project_id=project.id)
+    next_url = get_next_url(default_url)
+
     if form.validate_on_submit():
         project.name = form.name.data
         project.description = form.description.data
         try:
             db.session.commit()
             flash("Проект обновлён", "success")
-            return redirect(url_for("main.project_detail", project_id=project.id))
+            return safe_redirect(default_url)
         except Exception as e:
             db.session.rollback()
             flash(f"Ошибка при обновлении: {str(e)}", "danger")
-    return render_template("projects/edit.html", form=form, project=project)
+    return render_template("projects/edit.html", form=form, project=project, next_url=next_url)
 
 
 @main_bp.route("/projects/<int:project_id>/delete", methods=["POST"])
@@ -233,7 +244,7 @@ def project_delete(project_id):
     except Exception as e:
         db.session.rollback()
         flash(f"Ошибка при удалении: {str(e)}", "danger")
-    return redirect(url_for("main.projects_list"))
+    return safe_redirect(url_for("main.projects_list"))
 
 
 @main_bp.route("/projects/export")

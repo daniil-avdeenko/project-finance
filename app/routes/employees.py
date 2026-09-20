@@ -2,13 +2,13 @@ import csv
 import json
 from io import StringIO
 
-from flask import flash, redirect, render_template, request, url_for
+from flask import flash, render_template, request, url_for
 from flask_login import login_required
 
 from app import db
 from app.decorators import admin_required
 from app.forms import EmployeeForm
-from app.helpers import make_csv_response
+from app.helpers import get_next_url, make_csv_response, safe_redirect
 from app.models import Employee, Project
 from app.routes.blueprint import main_bp
 
@@ -95,6 +95,8 @@ def employee_detail(employee_id):
 def employee_create():
     """Создание нового сотрудника (только для админов)."""
     form = EmployeeForm()
+    default_url = url_for("main.employees_list")
+    next_url = get_next_url(default_url)
 
     if request.method == "POST" and form.validate_on_submit():
         employee = Employee(
@@ -110,7 +112,7 @@ def employee_create():
             db.session.add(employee)
             db.session.commit()
             flash("Сотрудник добавлен!", "success")
-            return redirect(url_for("main.employees_list"))
+            return safe_redirect(default_url)
         except Exception as e:
             db.session.rollback()
             flash(f"Ошибка при сохранении: {str(e)}", "danger")
@@ -119,6 +121,7 @@ def employee_create():
         "employees/create.html",
         form=form,
         all_projects=Project.active().all(),
+        next_url=next_url,
     )
 
 
@@ -131,6 +134,8 @@ def employee_edit(employee_id):
     """
     employee = Employee.query.get_or_404(employee_id)
     form = EmployeeForm(obj=employee)
+    default_url = url_for("main.employee_detail", employee_id=employee.id)
+    next_url = get_next_url(default_url)
 
     employee_projects_json = json.dumps(
         [{"id": p.id, "name": p.name} for p in employee.projects], ensure_ascii=False
@@ -143,6 +148,7 @@ def employee_edit(employee_id):
             employee=employee,
             all_projects=Project.active().all(),
             employee_projects_json=employee_projects_json,
+            next_url=next_url,
         )
 
     if request.method == "POST" and form.validate_on_submit():
@@ -157,7 +163,7 @@ def employee_edit(employee_id):
         try:
             db.session.commit()
             flash("Сотрудник обновлён", "success")
-            return redirect(url_for("main.employee_detail", employee_id=employee.id))
+            return safe_redirect(default_url)
         except Exception as e:
             db.session.rollback()
             flash(f"Ошибка при обновлении: {str(e)}", "danger")
@@ -168,6 +174,7 @@ def employee_edit(employee_id):
         employee=employee,
         all_projects=Project.active().all(),
         employee_projects_json=employee_projects_json,
+        next_url=next_url,
     )
 
 
@@ -184,7 +191,7 @@ def employee_delete(employee_id):
     except Exception as e:
         db.session.rollback()
         flash(f"Ошибка при удалении: {str(e)}", "danger")
-    return redirect(url_for("main.employees_list"))
+    return safe_redirect(url_for("main.employees_list"))
 
 
 @main_bp.route("/employees/export")

@@ -1,23 +1,12 @@
-from urllib.parse import urljoin, urlparse
-
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
 from app import limiter
 from app.forms import LoginForm
+from app.helpers import is_safe_url
 from app.models import User
 
 auth_bp = Blueprint("auth", __name__, template_folder="../templates")
-
-
-def is_safe_url(target):
-    """
-    Проверяет, является ли URL безопасным для редиректа.
-    Защита от Open Redirect уязвимости.
-    """
-    ref_url = urlparse(request.host_url)
-    test_url = urlparse(urljoin(request.host_url, target))
-    return test_url.scheme in ("http", "https") and ref_url.netloc == test_url.netloc
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])
