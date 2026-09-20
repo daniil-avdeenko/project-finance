@@ -37,15 +37,15 @@
             <span class="badge bg-success">{{ project.profit|money }} ₽</span>
             <span class="badge bg-info">{{ "{:.1f}".format(project.profitability) }}%</span>
             {% if current_user.is_admin() %}
-            <a href="{{ url_for('main.project_edit', project_id=project.id) }}" class="btn btn-sm btn-outline-secondary"
+            <a href="{{ url_for('main.project_edit', project_id=project.id, next=request.path) }}" class="btn btn-sm btn-outline-secondary"
                title="Редактировать" onclick="event.stopPropagation();">
                 <i class="fas fa-pen"></i>
             </a>
-            <form method="post" action="{{ url_for('main.project_delete', project_id=project.id) }}"
+            <form method="post" action="{{ url_for('main.project_delete', project_id=project.id, next=request.path) }}"
                   style="display:inline;" onclick="event.stopPropagation();">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="button" class="btn btn-sm btn-outline-danger"
-                        data-delete-url="{{ url_for('main.project_delete', project_id=project.id) }}"
+                        data-delete-url="{{ url_for('main.project_delete', project_id=project.id, next=request.path) }}"
                         data-delete-name="{{ project.name }}"
                         title="Удалить"
                         onclick="event.stopPropagation();">

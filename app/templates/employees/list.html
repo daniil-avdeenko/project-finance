@@ -61,15 +61,15 @@
 
         {% if current_user.is_admin() %}
         <div>
-            <a href="{{ url_for('main.employee_edit', employee_id=employee.id) }}"
+            <a href="{{ url_for('main.employee_edit', employee_id=employee.id, next=request.path) }}"
                class="btn btn-sm btn-outline-secondary me-1" title="Редактировать" onclick="event.stopPropagation();">
                 <i class="fas fa-pen"></i>
             </a>
-            <form method="post" action="{{ url_for('main.employee_delete', employee_id=employee.id) }}"
+            <form method="post" action="{{ url_for('main.employee_delete', employee_id=employee.id, next=request.path) }}"
                   style="display:inline;" onclick="event.stopPropagation();">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="button" class="btn btn-sm btn-outline-danger"
-                        data-delete-url="{{ url_for('main.employee_delete', employee_id=employee.id) }}"
+                        data-delete-url="{{ url_for('main.employee_delete', employee_id=employee.id, next=request.path) }}"
                         data-delete-name="{{ employee.name }}"
                         title="Удалить"
                         onclick="event.stopPropagation();">
