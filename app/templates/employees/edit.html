@@ -57,7 +57,7 @@
 </form>
 
 <!-- Скрытый элемент для хранения данных о проектах -->
-<div id="employeeProjectsData" data-projects="{{ employee_projects_json|safe }}" style="display:none;"></div>
+<div id="employeeProjectsData" data-projects='{{ employee_projects_json|tojson }}' style="display:none;"></div>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
