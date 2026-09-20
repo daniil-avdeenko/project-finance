@@ -31,7 +31,7 @@
     <!-- Добавление проектов с ролями -->
     <div class="mb-3">
         <label class="form-label">Проекты и роли</label>
-        <div id="projectRoleList" class="mb-2"></div>
+        <div id="projectRoleList" class="mb-2 entries-list"></div>
 
         <div class="row g-2 mb-2">
             <div class="col-md-5">
@@ -71,6 +71,9 @@
                 <button type="button" class="btn btn-primary w-100" id="addProjectBtn">
                     <i class="fas fa-plus"></i> Добавить
                 </button>
+                <button type="button" class="btn btn-outline-secondary w-100 mt-1 d-none" id="cancelEditBtn">
+                    Отмена
+                </button>
             </div>
         </div>
 
@@ -78,121 +81,80 @@
     </div>
 
     <div class="d-flex justify-content-center gap-2">
-        <button type="submit" class="btn btn-success">💾 Сохранить</button>
+        <button type="submit" class="btn btn-success" id="submitBtn">💾 Сохранить</button>
         <a href="{{ next_url }}" class="btn btn-secondary">Отмена</a>
     </div>
 </form>
+
+<div class="toast-container" id="toastContainer"></div>
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const listEl = document.getElementById('projectRoleList');
         const projectSelect = document.getElementById('projectSelect');
         const roleInput = document.getElementById('roleInput');
-        const addBtn = document.getElementById('addProjectBtn');
-        const hiddenInput = document.getElementById('projectRolesInput');
-
-        // [{project_id, project_name, role}]
-        let entries = [];
-
-        function render() {
-            listEl.innerHTML = '';
-            if (entries.length === 0) {
-                listEl.innerHTML = '<span class="text-muted">Нет привязанных проектов</span>';
-            } else {
-                const ul = document.createElement('ul');
-                ul.className = 'list-group';
-                entries.forEach((entry, idx) => {
-                    const li = document.createElement('li');
-                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
-                    li.innerHTML = `
-                        <span>
-                            <i class="fas fa-folder-open text-primary me-2"></i>
-                            <span class="fw-semibold">${entry.project_name}</span>
-                            <span class="badge bg-secondary ms-2">${entry.role}</span>
-                        </span>
-                        <span>
-                            <button type="button" class="btn btn-sm btn-outline-secondary me-1 edit-entry" data-idx="${idx}" title="Редактировать">
-                                <i class="fas fa-pen"></i>
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-danger remove-entry" data-idx="${idx}" title="Удалить">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </span>
-                    `;
-                    ul.appendChild(li);
-                });
-                listEl.appendChild(ul);
-
-                listEl.querySelectorAll('.remove-entry').forEach(btn => {
-                    btn.addEventListener('click', function () {
-                        const idx = parseInt(this.dataset.idx);
-                        entries.splice(idx, 1);
-                        render();
-                    });
-                });
-
-                listEl.querySelectorAll('.edit-entry').forEach(btn => {
-                    btn.addEventListener('click', function () {
-                        const idx = parseInt(this.dataset.idx);
-                        const entry = entries[idx];
-                        projectSelect.value = entry.project_id;
-                        roleInput.value = entry.role;
-                        entries.splice(idx, 1);
-                        render();
-                    });
-                });
-            }
-            updateHidden();
-        }
-
-        function updateHidden() {
-            const payload = entries.map(e => ({
-                project_id: e.project_id,
-                role: e.role,
-            }));
-            hiddenInput.value = JSON.stringify(payload);
-        }
-
-        function addEntry() {
-            const projectId = parseInt(projectSelect.value);
-            const role = roleInput.value.trim();
-
-            if (!projectId) {
-                alert('Выберите проект.');
-                return;
-            }
-            if (!role) {
-                alert('Укажите роль на проекте.');
-                return;
-            }
-            if (entries.some(e => e.project_id === projectId)) {
-                alert('Этот проект уже добавлен. Отредактируйте существующую строку.');
-                return;
-            }
-
-            const option = projectSelect.querySelector(`option[value="${projectId}"]`);
-            const projectName = option ? option.dataset.name : `Проект #${projectId}`;
-
-            entries.push({
-                project_id: projectId,
-                project_name: projectName,
-                role: role,
-            });
-
-            projectSelect.value = '';
-            roleInput.value = '';
-            render();
-        }
-
-                // ===== DROPDOWN ВЫБОРА РОЛИ С AJAX-ОБНОВЛЕНИЕМ =====
         const roleDropdownBtn = document.getElementById('roleDropdownBtn');
         const roleDropdownMenu = document.getElementById('roleDropdownMenu');
+        const addBtn = document.getElementById('addProjectBtn');
+        const cancelEditBtn = document.getElementById('cancelEditBtn');
+        const hiddenInput = document.getElementById('projectRolesInput');
+        const submitBtn = document.getElementById('submitBtn');
+        const toastContainer = document.getElementById('toastContainer');
+
         const bsDropdown = bootstrap.Dropdown.getOrCreateInstance(roleDropdownBtn);
 
-        // Флаг: значение пришло из списка (а не набрано вручную).
-        // При клике на input такое значение очищается, чтобы не мешало.
         let pickedFromList = false;
+        let entries = [];
+        let editingIdx = null;
+        let isDirty = false;
 
+                // ===== TOAST-УВЕДОМЛЕНИЯ =====
+        // Одновременно отображается только один toast.
+        // При повторных нажатиях содержимое обновляется — без накопления.
+        let currentToast = null;
+        let currentToastTimer = null;
+
+        function showToast(message, type = 'warning') {
+            const icon = type === 'error' ? 'fa-circle-xmark' : 'fa-exclamation-triangle';
+            const html = `<i class="fas ${icon} me-2"></i>${message}`;
+
+            if (currentToast) {
+                // Обновляем существующий — таймер перезапускается
+                currentToast.className = 'custom-toast custom-toast-' + type + ' show';
+                currentToast.innerHTML = html;
+                clearTimeout(currentToastTimer);
+            } else {
+                currentToast = document.createElement('div');
+                currentToast.className = 'custom-toast custom-toast-' + type;
+                currentToast.innerHTML = html;
+                toastContainer.appendChild(currentToast);
+                requestAnimationFrame(() => currentToast.classList.add('show'));
+            }
+
+            currentToastTimer = setTimeout(() => {
+                if (currentToast) {
+                    currentToast.classList.remove('show');
+                    setTimeout(() => {
+                        if (currentToast) {
+                            currentToast.remove();
+                            currentToast = null;
+                        }
+                    }, 300);
+                }
+            }, 3200);
+        }
+
+        // ===== ОТСЛЕЖИВАНИЕ ИЗМЕНЕНИЙ В ПОЛЯХ ФОРМЫ =====
+        ['name', 'phone', 'email'].forEach(fieldName => {
+            const el = document.querySelector(`[name="${fieldName}"]`);
+            if (!el) return;
+            el.addEventListener('input', function () {
+                isDirty = true;
+                updateUI();
+            });
+        });
+
+        // ===== DROPDOWN РОЛЕЙ =====
         function renderRoleOptions(roles) {
             roleDropdownMenu.innerHTML = '';
             if (!roles.length) {
@@ -220,51 +182,213 @@
             });
         }
 
-        // Клик по кнопке со стрелкой — подтянуть актуальные роли и открыть/закрыть
         roleDropdownBtn.addEventListener('click', async function (e) {
             e.preventDefault();
             e.stopPropagation();
-
             try {
                 const resp = await fetch('{{ url_for("main.api_roles") }}');
                 if (resp.ok) {
-                    const roles = await resp.json();
-                    renderRoleOptions(roles);
+                    renderRoleOptions(await resp.json());
                 }
             } catch (err) {
                 console.warn('Не удалось обновить список ролей:', err);
             }
-
             bsDropdown.toggle();
         });
 
-        // Клик по полю ввода: закрывает dropdown и очищает значение из списка
-        roleInput.addEventListener('click', function (e) {
-            e.stopPropagation();
-            bsDropdown.hide();
+        roleInput.addEventListener('click', function () {
             if (pickedFromList) {
                 this.value = '';
                 pickedFromList = false;
             }
+            bsDropdown.hide();
         });
 
-        // Ручной ввод сбрасывает флаг "из списка"
         roleInput.addEventListener('input', function () {
             pickedFromList = false;
         });
 
-        // Клик вне области (кнопка + меню + input) — закрыть dropdown
         document.addEventListener('click', function (e) {
             const insideButton = roleDropdownBtn.contains(e.target);
             const insideMenu = roleDropdownMenu.contains(e.target);
             const insideInput = roleInput.contains(e.target);
-
             if (!insideButton && !insideMenu && !insideInput) {
                 bsDropdown.hide();
             }
         });
 
-        addBtn.addEventListener('click', addEntry);
+        // ===== UI СОСТОЯНИЕ КНОПКИ СОХРАНИТЬ =====
+        function updateUI() {
+            if (editingIdx !== null) {
+                addBtn.innerHTML = '<i class="fas fa-check"></i> Применить';
+                cancelEditBtn.classList.remove('d-none');
+                submitBtn.classList.add('disabled');
+                submitBtn.setAttribute('aria-disabled', 'true');
+            } else {
+                addBtn.innerHTML = '<i class="fas fa-plus"></i> Добавить';
+                cancelEditBtn.classList.add('d-none');
+                if (isDirty) {
+                    submitBtn.classList.remove('disabled');
+                    submitBtn.removeAttribute('aria-disabled');
+                } else {
+                    submitBtn.classList.add('disabled');
+                    submitBtn.setAttribute('aria-disabled', 'true');
+                }
+            }
+        }
+
+        // ===== СПИСОК ПРОЕКТОВ И РОЛЕЙ =====
+        function updateHidden() {
+            hiddenInput.value = JSON.stringify(entries.map(e => ({
+                project_id: e.project_id,
+                role: e.role,
+            })));
+        }
+
+        function render() {
+            listEl.innerHTML = '';
+            if (entries.length === 0) {
+                listEl.innerHTML = '<span class="text-muted">Нет привязанных проектов</span>';
+            } else {
+                const ul = document.createElement('ul');
+                ul.className = 'list-group';
+                entries.forEach((entry, idx) => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    if (idx === editingIdx) li.classList.add('editing-entry');
+                    li.innerHTML = `
+                        <span>
+                            <i class="fas fa-folder-open text-primary me-2"></i>
+                            <span class="fw-semibold">${entry.project_name}</span>
+                            <span class="badge bg-secondary ms-2">${entry.role}</span>
+                        </span>
+                        <span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary me-1 edit-entry" data-idx="${idx}" title="Редактировать">
+                                <i class="fas fa-pen"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-entry" data-idx="${idx}" title="Удалить">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </span>
+                    `;
+                    ul.appendChild(li);
+                });
+                listEl.appendChild(ul);
+
+                listEl.querySelectorAll('.edit-entry').forEach(btn => {
+                    btn.addEventListener('click', function () {
+                        startEdit(parseInt(this.dataset.idx));
+                    });
+                });
+                listEl.querySelectorAll('.remove-entry').forEach(btn => {
+                    btn.addEventListener('click', function () {
+                        removeEntry(parseInt(this.dataset.idx));
+                    });
+                });
+            }
+            updateHidden();
+            updateUI();
+        }
+
+        function startEdit(idx) {
+            const entry = entries[idx];
+            projectSelect.value = entry.project_id;
+            roleInput.value = entry.role;
+            pickedFromList = true;
+            editingIdx = idx;
+            render();
+        }
+
+        function cancelEdit() {
+            editingIdx = null;
+            projectSelect.value = '';
+            roleInput.value = '';
+            pickedFromList = false;
+            render();
+        }
+
+        function removeEntry(idx) {
+            if (editingIdx === idx) {
+                editingIdx = null;
+                projectSelect.value = '';
+                roleInput.value = '';
+                pickedFromList = false;
+            } else if (editingIdx !== null && idx < editingIdx) {
+                editingIdx--;
+            }
+            entries.splice(idx, 1);
+            isDirty = true;
+            render();
+        }
+
+        function applyOrAdd() {
+            const projectId = parseInt(projectSelect.value);
+            const role = roleInput.value.trim();
+
+            if (!projectId && !role) {
+                showToast('Выберите проект и укажите роль');
+                return;
+            }
+            if (!projectId) {
+                showToast('Выберите проект');
+                return;
+            }
+            if (!role) {
+                showToast('Укажите роль на проекте');
+                return;
+            }
+
+            const option = projectSelect.querySelector(`option[value="${projectId}"]`);
+            const projectName = option ? option.dataset.name : `Проект #${projectId}`;
+
+            if (editingIdx !== null) {
+                entries[editingIdx] = { project_id: projectId, project_name: projectName, role };
+                editingIdx = null;
+                projectSelect.value = '';
+                roleInput.value = '';
+                pickedFromList = false;
+                isDirty = true;
+                render();
+                return;
+            }
+
+            if (entries.some(e => e.project_id === projectId)) {
+                showToast('Этот проект уже добавлен — отредактируйте существующую строку', 'error');
+                return;
+            }
+
+            entries.push({ project_id: projectId, project_name: projectName, role });
+            projectSelect.value = '';
+            roleInput.value = '';
+            pickedFromList = false;
+            isDirty = true;
+            render();
+        }
+
+        // ===== ЗАЩИТА ОТ ОТПРАВКИ =====
+        function blockIfInvalid(e) {
+            if (editingIdx !== null) {
+                e.preventDefault();
+                showToast('Завершите редактирование строки (кнопка «Применить») или отмените его');
+                return true;
+            }
+            if (!isDirty) {
+                e.preventDefault();
+                showToast('Внесите изменения перед сохранением', 'info');
+                return true;
+            }
+            return false;
+        }
+
+        submitBtn.addEventListener('click', blockIfInvalid);
+
+        document.querySelector('form').addEventListener('submit', function (e) {
+            blockIfInvalid(e);
+        });
+
+        addBtn.addEventListener('click', applyOrAdd);
+        cancelEditBtn.addEventListener('click', cancelEdit);
+
         render();
     });
 </script>
