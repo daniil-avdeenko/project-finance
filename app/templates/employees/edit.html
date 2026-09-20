@@ -17,37 +17,48 @@
         {% endfor %}
     </div>
 
-    <div class="mb-3">
-        {{ form.position.label(class="form-label") }}
-        {{ form.position(class="form-control") }}
-    </div>
-
-    <div class="mb-3">
-        {{ form.phone.label(class="form-label") }}
-        {{ form.phone(class="form-control") }}
-    </div>
-
-    <div class="mb-3">
-        {{ form.email.label(class="form-label") }}
-        {{ form.email(class="form-control") }}
-    </div>
-
-    <!-- Управление проектами -->
-    <div class="mb-3">
-        <label class="form-label">Проекты</label>
-        <div id="projectList" class="mb-2"></div>
-        <div class="input-group">
-            <select id="projectSelect" class="form-select">
-                <option value="">Выберите проект...</option>
-                {% for project in all_projects %}
-                    <option value="{{ project.id }}">{{ project.name }}</option>
-                {% endfor %}
-            </select>
-            <button type="button" class="btn btn-primary" id="addProjectBtn">
-                <i class="fas fa-plus"></i> Добавить
-            </button>
+    <div class="row mb-3">
+        <div class="col-md-6">
+            {{ form.phone.label(class="form-label") }}
+            {{ form.phone(class="form-control") }}
         </div>
-        <input type="hidden" name="project_ids" id="projectIds" value="">
+        <div class="col-md-6">
+            {{ form.email.label(class="form-label") }}
+            {{ form.email(class="form-control") }}
+        </div>
+    </div>
+
+    <!-- Добавление проектов с ролями -->
+    <div class="mb-3">
+        <label class="form-label">Проекты и роли</label>
+        <div id="projectRoleList" class="mb-2"></div>
+
+        <div class="row g-2 mb-2">
+            <div class="col-md-5">
+                <select id="projectSelect" class="form-select">
+                    <option value="">Выберите проект...</option>
+                    {% for project in all_projects %}
+                    <option value="{{ project.id }}" data-name="{{ project.name }}">{{ project.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-5">
+                <input type="text" id="roleInput" class="form-control" list="roleOptions"
+                       placeholder="Роль на проекте (например, Разработчик)">
+                <datalist id="roleOptions">
+                    {% for role in all_roles %}
+                    <option value="{{ role }}"></option>
+                    {% endfor %}
+                </datalist>
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-primary w-100" id="addProjectBtn">
+                    <i class="fas fa-plus"></i> Добавить
+                </button>
+            </div>
+        </div>
+
+        <input type="hidden" name="project_roles" id="projectRolesInput" value="">
     </div>
 
     <div class="d-flex justify-content-center gap-2">
@@ -56,87 +67,127 @@
     </div>
 </form>
 
-<!-- Скрытый элемент для хранения данных о проектах -->
-<div id="employeeProjectsData" data-projects='{{ employee_projects_json|tojson }}' style="display:none;"></div>
+<!-- Данные текущих привязок из сервера -->
+<div id="currentEntriesData" data-entries='{{ current_project_roles|tojson }}' style="display:none;"></div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const projectList = document.getElementById('projectList');
+    document.addEventListener('DOMContentLoaded', function () {
+        const listEl = document.getElementById('projectRoleList');
         const projectSelect = document.getElementById('projectSelect');
+        const roleInput = document.getElementById('roleInput');
         const addBtn = document.getElementById('addProjectBtn');
-        const projectIdsInput = document.getElementById('projectIds');
+        const hiddenInput = document.getElementById('projectRolesInput');
+        const dataEl = document.getElementById('currentEntriesData');
 
-        const projectsDataElement = document.getElementById('employeeProjectsData');
-        const currentProjects = JSON.parse(projectsDataElement.dataset.projects || '[]');
-        let selectedProjects = currentProjects.map(p => p.id);
+        // Парсим привязки, пришедшие с сервера: [{project_id, role}, ...]
+        const serverEntries = JSON.parse(dataEl.dataset.entries || '[]');
 
-        function renderProjects() {
-            projectList.innerHTML = '';
-            if (selectedProjects.length === 0) {
-                projectList.innerHTML = '<span class="text-muted">Нет проектов</span>';
+        // Достаём имена проектов из селекта — это источник project_name
+        const projectNames = {};
+        Array.from(projectSelect.options).forEach(opt => {
+            if (opt.value) {
+                projectNames[parseInt(opt.value)] = opt.dataset.name;
+            }
+        });
+
+        let entries = serverEntries.map(e => ({
+            project_id: e.project_id,
+            project_name: projectNames[e.project_id] || `Проект #${e.project_id}`,
+            role: e.role,
+        }));
+
+        function render() {
+            listEl.innerHTML = '';
+            if (entries.length === 0) {
+                listEl.innerHTML = '<span class="text-muted">Нет привязанных проектов</span>';
             } else {
                 const ul = document.createElement('ul');
                 ul.className = 'list-group';
-                selectedProjects.forEach(id => {
-                    const option = projectSelect.querySelector(`option[value="${id}"]`);
-                    const name = option ? option.textContent : 'Проект ID ' + id;
+                entries.forEach((entry, idx) => {
                     const li = document.createElement('li');
                     li.className = 'list-group-item d-flex justify-content-between align-items-center';
                     li.innerHTML = `
-                        <span>${name}</span>
-                        <button type="button" class="btn btn-sm btn-outline-danger remove-project" data-id="${id}">
-                            <i class="fas fa-times"></i>
-                        </button>
+                        <span>
+                            <i class="fas fa-folder-open text-primary me-2"></i>
+                            <span class="fw-semibold">${entry.project_name}</span>
+                            <span class="badge bg-secondary ms-2">${entry.role}</span>
+                        </span>
+                        <span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary me-1 edit-entry" data-idx="${idx}" title="Редактировать">
+                                <i class="fas fa-pen"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-entry" data-idx="${idx}" title="Удалить">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </span>
                     `;
                     ul.appendChild(li);
                 });
-                projectList.appendChild(ul);
+                listEl.appendChild(ul);
 
-                document.querySelectorAll('.remove-project').forEach(btn => {
-                    btn.addEventListener('click', function() {
-                        const id = parseInt(this.dataset.id);
-                        removeProject(id);
+                listEl.querySelectorAll('.remove-entry').forEach(btn => {
+                    btn.addEventListener('click', function () {
+                        const idx = parseInt(this.dataset.idx);
+                        entries.splice(idx, 1);
+                        render();
+                    });
+                });
+
+                listEl.querySelectorAll('.edit-entry').forEach(btn => {
+                    btn.addEventListener('click', function () {
+                        const idx = parseInt(this.dataset.idx);
+                        const entry = entries[idx];
+                        projectSelect.value = entry.project_id;
+                        roleInput.value = entry.role;
+                        entries.splice(idx, 1);
+                        render();
                     });
                 });
             }
-            updateHiddenField();
-            updateSelectOptions();
+            updateHidden();
         }
 
-        function removeProject(id) {
-            selectedProjects = selectedProjects.filter(p => p !== id);
-            renderProjects();
+        function updateHidden() {
+            const payload = entries.map(e => ({
+                project_id: e.project_id,
+                role: e.role,
+            }));
+            hiddenInput.value = JSON.stringify(payload);
         }
 
-        function addProject() {
-            const id = parseInt(projectSelect.value);
-            if (!id) {
-                alert('Пожалуйста, выберите проект.');
+        function addEntry() {
+            const projectId = parseInt(projectSelect.value);
+            const role = roleInput.value.trim();
+
+            if (!projectId) {
+                alert('Выберите проект.');
                 return;
             }
-            if (selectedProjects.includes(id)) {
-                alert('Этот проект уже добавлен.');
+            if (!role) {
+                alert('Укажите роль на проекте.');
                 return;
             }
-            selectedProjects.push(id);
-            renderProjects();
-            projectSelect.value = '';
-        }
+            if (entries.some(e => e.project_id === projectId)) {
+                alert('Этот проект уже добавлен. Отредактируйте существующую строку.');
+                return;
+            }
 
-        function updateHiddenField() {
-            projectIdsInput.value = selectedProjects.join(',');
-        }
+            const option = projectSelect.querySelector(`option[value="${projectId}"]`);
+            const projectName = option ? option.dataset.name : `Проект #${projectId}`;
 
-        function updateSelectOptions() {
-            Array.from(projectSelect.options).forEach(opt => {
-                if (opt.value) {
-                    opt.style.display = selectedProjects.includes(parseInt(opt.value)) ? 'none' : 'block';
-                }
+            entries.push({
+                project_id: projectId,
+                project_name: projectName,
+                role: role,
             });
+
+            projectSelect.value = '';
+            roleInput.value = '';
+            render();
         }
 
-        addBtn.addEventListener('click', addProject);
-        renderProjects();
+        addBtn.addEventListener('click', addEntry);
+        render();
     });
 </script>
 {% endblock %}
