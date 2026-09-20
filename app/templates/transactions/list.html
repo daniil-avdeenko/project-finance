@@ -10,7 +10,7 @@
             <i class="fas fa-file-csv me-1"></i>Экспорт CSV
         </a>
         {% if current_user.is_admin() %}
-                <a href="{{ url_for('main.transaction_create', next=request.path) }}" class="btn btn-primary">
+                <a href="{{ url_for('main.transaction_create', next=request.full_path.rstrip('?')) }}" class="btn btn-primary">
             <i class="fas fa-plus me-1"></i>Добавить транзакцию
         </a>
         {% endif %}
@@ -66,7 +66,7 @@
     {% for t in transactions %}
     <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center transaction-row"
          style="cursor: pointer; transition: 0.2s; padding: 1rem 1.25rem;"
-         data-url="{{ url_for('main.transaction_edit', transaction_id=t.id) }}">
+         data-url="{{ url_for('main.transaction_edit', transaction_id=t.id, next=request.full_path.rstrip('?')) }}">
 
         <!-- Левая часть: все данные -->
         <div class="d-flex align-items-center" style="flex: 1; min-width: 0; overflow: hidden; gap: 8px;">
@@ -122,15 +122,15 @@
         <!-- Правая часть: кнопки -->
         <div class="d-flex align-items-center gap-2 flex-shrink-0" style="margin-left: 10px;">
             {% if current_user.is_admin() %}
-            <a href="{{ url_for('main.transaction_edit', transaction_id=t.id) }}"
+            <a href="{{ url_for('main.transaction_edit', transaction_id=t.id, next=request.full_path.rstrip('?')) }}"
                class="btn btn-sm btn-outline-secondary me-1" title="Редактировать" onclick="event.stopPropagation();">
                 <i class="fas fa-pen"></i>
             </a>
-            <form method="post" action="{{ url_for('main.transaction_delete', transaction_id=t.id) }}"
+            <form method="post" action="{{ url_for('main.transaction_delete', transaction_id=t.id, next=request.full_path.rstrip('?')) }}"
                   style="display:inline;" onclick="event.stopPropagation();">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="button" class="btn btn-sm btn-outline-danger"
-                        data-delete-url="{{ url_for('main.transaction_delete', transaction_id=t.id) }}"
+                        data-delete-url="{{ url_for('main.transaction_delete', transaction_id=t.id, next=request.full_path.rstrip('?')) }}"
                         data-delete-name="транзакцию {{ t.amount|money }} {{ t.currency or 'RUB' }}"
                         title="Удалить"
                         onclick="event.stopPropagation();">
