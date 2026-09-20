@@ -149,3 +149,54 @@ body {
     overflow: hidden;
     /* flex-grow-1 заполняет пространство, line-clamp режет длинный текст */
 }
+
+/* Строка проекта в режиме редактирования */
+.entries-list .list-group-item.editing-entry {
+    background-color: #fff8e1;
+    border-left: 4px solid #ffc107;
+}
+
+/* Toast-уведомления (общие для форм) */
+.toast-container {
+    position: fixed;
+    /* Навбар ~56px + margin-top контейнера страницы ~24px +
+       выравнивание с заголовком h1 ~16px */
+    top: 6rem;
+    right: 2rem;
+    z-index: 1100;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: 400px;
+    pointer-events: none;
+}
+
+.toast-container > * {
+    pointer-events: auto;
+}
+
+.custom-toast {
+    background: #fff;
+    border-left: 4px solid #ffc107;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    padding: 0.75rem 1rem;
+    opacity: 0;
+    transform: translateX(120%);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    font-size: 0.9rem;
+    color: #212529;
+}
+
+.custom-toast.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.custom-toast-error {
+    border-left-color: #dc3545;
+}
+
+.custom-toast-info {
+    border-left-color: #0d6efd;
+}
