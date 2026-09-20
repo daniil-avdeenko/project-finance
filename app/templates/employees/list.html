@@ -19,11 +19,11 @@
 
 <form method="get" class="row g-3 mb-4 align-items-end">
     <div class="col-md-3">
-        <label for="position" class="form-label">Должность</label>
-        <select name="position" id="position" class="form-select">
-            <option value="">Все должности</option>
-            {% for pos in positions %}
-            <option value="{{ pos }}" {% if pos== selected_position %}selected{% endif %}>{{ pos }}</option>
+        <label for="role" class="form-label">Роль на проекте</label>
+        <select name="role" id="role" class="form-select">
+            <option value="">Все роли</option>
+            {% for role in roles %}
+            <option value="{{ role }}" {% if role == selected_role %}selected{% endif %}>{{ role }}</option>
             {% endfor %}
         </select>
     </div>
@@ -52,10 +52,10 @@
         <div class="flex-grow-1 me-3">
             <div class="d-flex flex-wrap align-items-center gap-2">
                 <span class="fw-semibold">{{ employee.name }}</span>
-                {% if employee.position %}
-                <span class="badge bg-secondary">{{ employee.position }}</span>
-                {% endif %}
-                <span class="text-muted">Кол-во проектов: {{ employee.projects|length }}</span>
+                {% for role in employee.roles %}
+                <span class="badge bg-secondary">{{ role }}</span>
+                {% endfor %}
+                <span class="text-muted">Кол-во проектов: {{ employee.project_roles|length }}</span>
             </div>
         </div>
 
