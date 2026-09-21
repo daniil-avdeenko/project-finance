@@ -1,6 +1,9 @@
 """
 Задачи планировщика.
+
 Все job'ы — async-функции, принимают Flask-app как первый аргумент.
+Ошибки не поднимаются наружу (кроме CancelledError при shutdown) —
+APScheduler не должен снимать job из-за одного падения.
 """
 
 import asyncio
@@ -175,6 +178,9 @@ async def job_sync_grist(app) -> None:
                 db.session.commit()
                 logger.info("Grist sync: added=%d, deleted=%d", added, deleted)
 
+        except asyncio.CancelledError:
+            logger.info("job_sync_grist отменён (shutdown)")
+            raise
         except Exception as e:
             db.session.rollback()
             logger.exception("job_sync_grist failed")
@@ -236,6 +242,9 @@ async def job_scrape_cbr(app) -> None:
             await sync_rates_to_grist_httpx(rates)
             logger.info("job_scrape_cbr Grist: получено %d курсов", len(rates))
 
+        except asyncio.CancelledError:
+            logger.info("job_scrape_cbr отменён (shutdown)")
+            raise
         except Exception as e:
             logger.exception("job_scrape_cbr failed")
             db.session.rollback()
@@ -280,6 +289,10 @@ async def job_sync_sheets(app) -> None:
                 result["projects"],
                 result["transactions"],
             )
+
+        except asyncio.CancelledError:
+            logger.info("job_sync_sheets отменён (shutdown)")
+            raise
         except Exception as e:
             logger.exception("job_sync_sheets failed")
             db.session.rollback()
