@@ -21,8 +21,10 @@ from app.integrations.grist_httpx import (
 
 
 @pytest.fixture
-def grist_client():
-    """Готовый клиент с фиктивными credentials."""
+def grist_client(monkeypatch):
+    """Готовый клиент с фиктивными credentials и быстрым backoff для тестов."""
+    # Ускоряем retry: 1s/2s/4s → 10ms/20ms/40ms
+    monkeypatch.setattr(GristClient, "BACKOFF_BASE", 0.01)
     return GristClient(
         api_key="test-api-key",
         doc_id="test-doc-id",
@@ -154,24 +156,60 @@ async def test_upsert_records_raises_on_4xx(grist_client):
 
 @respx.mock
 async def test_upsert_records_raises_on_5xx(grist_client):
-    """5xx ответ поднимает HTTPStatusError."""
+    """5xx ответ поднимает HTTPStatusError (без retry — это не сетевая ошибка)."""
     respx.put("https://docs.getgrist.com/api/docs/test-doc-id/tables/Projects/records").mock(
         return_value=httpx.Response(500)
     )
 
     with pytest.raises(httpx.HTTPStatusError):
-        await grist_client.upsert_records("Projects", [])
+        await grist_client.upsert_records("Projects", [{"require": {"id": 1}, "fields": {}}])
 
 
 @respx.mock
 async def test_upsert_records_raises_on_network_error(grist_client):
-    """Сетевая ошибка поднимает RequestError."""
-    respx.put("https://docs.getgrist.com/api/docs/test-doc-id/tables/Projects/records").mock(
-        side_effect=httpx.ConnectError("Connection refused")
-    )
+    """Сетевая ошибка поднимает RequestError после MAX_RETRIES попыток."""
+    route = respx.put(
+        "https://docs.getgrist.com/api/docs/test-doc-id/tables/Projects/records"
+    ).mock(side_effect=httpx.ConnectError("Connection refused"))
 
     with pytest.raises(httpx.RequestError):
-        await grist_client.upsert_records("Projects", [])
+        await grist_client.upsert_records("Projects", [{"require": {"id": 1}, "fields": {}}])
+
+    # Retry сработал: 3 попытки
+    assert route.call_count == 3
+
+
+# ============================================================
+#   тесты RETRY
+# ============================================================
+
+
+@respx.mock
+async def test_upsert_records_retries_on_read_error_then_succeeds(grist_client):
+    """ReadError на первой попытке, успех на второй — retry работает."""
+    route = respx.put("https://docs.getgrist.com/api/docs/test-doc-id/tables/Projects/records")
+    route.side_effect = [
+        httpx.ReadError("Connection reset"),
+        httpx.Response(200, json={"addRecordIds": [1]}),
+    ]
+
+    result = await grist_client.upsert_records("Projects", [{"require": {"id": 1}, "fields": {}}])
+
+    assert result == {"added": 1, "updated": 0}
+    assert route.call_count == 2
+
+
+@respx.mock
+async def test_upsert_records_does_not_retry_on_4xx(grist_client):
+    """400 не retry — сразу HTTPStatusError."""
+    route = respx.put(
+        "https://docs.getgrist.com/api/docs/test-doc-id/tables/Projects/records"
+    ).mock(return_value=httpx.Response(400, json={"error": "Bad request"}))
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await grist_client.upsert_records("Projects", [{"require": {"id": 1}, "fields": {}}])
+
+    assert route.call_count == 1
 
 
 # ============================================================

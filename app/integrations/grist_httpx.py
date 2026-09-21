@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 
@@ -7,6 +8,11 @@ logger = logging.getLogger(__name__)
 
 
 class GristClient:
+    """Асинхронный клиент Grist API с retry и chunking."""
+
+    MAX_RETRIES = 3
+    BACKOFF_BASE = 1.0  # секунды; в тестах переопределяем на маленькое
+
     def __init__(self, api_key: str, doc_id: str, server: str = "https://docs.getgrist.com"):
         self.api_key = api_key
         self.doc_id = doc_id
@@ -19,28 +25,70 @@ class GristClient:
         }
 
     async def _request(self, method: str, endpoint: str, **kwargs):
+        """
+        HTTP-запрос с retry для сетевых ошибок.
+
+        - 4xx/5xx — поднимаем HTTPStatusError без retry
+        - httpx.RequestError (ReadError, ConnectError, Timeout) — retry с backoff
+        """
         url = f"{self.base_url}/{endpoint}"
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.request(
-                    method=method, url=url, headers=self.headers, timeout=30.0, **kwargs
-                )
-                response.raise_for_status()
-                if response.status_code == 204:
-                    return {}
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                logger.error(
-                    "HTTP ошибка при запросе %s %s: %s — %s",
-                    method,
-                    url,
-                    e.response.status_code,
-                    e.response.text,
-                )
-                raise
-            except httpx.RequestError as e:
-                logger.error("Ошибка сети при запросе %s %s: %s", method, url, e)
-                raise
+        last_exc: httpx.RequestError | None = None
+
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            async with httpx.AsyncClient() as client:
+                try:
+                    response = await client.request(
+                        method=method,
+                        url=url,
+                        headers=self.headers,
+                        timeout=30.0,
+                        **kwargs,
+                    )
+                    response.raise_for_status()
+                    if response.status_code == 204:
+                        return {}
+                    return response.json()
+
+                except httpx.HTTPStatusError as e:
+                    logger.error(
+                        "HTTP %d при %s %s: %s",
+                        e.response.status_code,
+                        method,
+                        url,
+                        e.response.text[:500],
+                    )
+                    raise
+
+                except httpx.RequestError as e:
+                    last_exc = e
+                    if attempt < self.MAX_RETRIES:
+                        delay = self.BACKOFF_BASE * (2 ** (attempt - 1))
+                        logger.warning(
+                            "Сетевая ошибка при %s %s (попытка %d/%d): %s — %r. "
+                            "Повтор через %.1fс",
+                            method,
+                            url,
+                            attempt,
+                            self.MAX_RETRIES,
+                            type(e).__name__,
+                            e,
+                            delay,
+                        )
+                        await asyncio.sleep(delay)
+                    else:
+                        logger.error(
+                            "Сетевая ошибка при %s %s после %d попыток: %s — %r",
+                            method,
+                            url,
+                            self.MAX_RETRIES,
+                            type(e).__name__,
+                            e,
+                        )
+                        raise
+
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError("Retry loop exited without result or exception")
 
     async def upsert_records(self, table_id: str, records: list[dict]) -> dict:
         """Upsert записей. Возвращает только статистику."""
