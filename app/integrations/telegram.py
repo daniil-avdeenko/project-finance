@@ -1,6 +1,8 @@
 """
 Отправка уведомлений в Telegram через Bot API.
-Использует httpx.AsyncClient.
+
+Использует httpx.AsyncClient. Не поднимает исключения наружу —
+возвращает bool, чтобы вызывающий код решал, что делать.
 """
 
 import logging
@@ -56,13 +58,27 @@ async def send_message(text: str, parse_mode: str = "HTML") -> bool:
             return True
         except httpx.HTTPStatusError as e:
             logger.error(
-                "Telegram ответил %s: %s",
+                "Telegram ответил %d при POST %s: %s",
                 e.response.status_code,
+                url,
                 e.response.text[:500],
             )
             return False
+        except httpx.TimeoutException as e:
+            logger.error(
+                "Таймаут Telegram при POST %s: %s — %r",
+                url,
+                type(e).__name__,
+                e,
+            )
+            return False
         except httpx.RequestError as e:
-            logger.error("Сетевая ошибка при отправке в Telegram: %s", e)
+            logger.error(
+                "Сетевая ошибка Telegram при POST %s: %s — %r",
+                url,
+                type(e).__name__,
+                e,
+            )
             return False
 
 
