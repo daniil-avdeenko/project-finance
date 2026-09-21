@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 from flask_login import UserMixin
+from sqlalchemy import event
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app import db
@@ -267,3 +268,30 @@ class CurrencyRate(db.Model):
 
     def __repr__(self) -> str:
         return f"<CurrencyRate {self.code} {self.rate_date}={self.rate_rub}>"
+
+
+# ============================================================
+#   Каскадный soft delete
+# ============================================================
+
+
+@event.listens_for(Project, "after_update")
+def _cascade_soft_delete_transactions(mapper, connection, target):
+    """
+    При soft delete проекта помечает его транзакции удалёнными.
+
+    Использует low-level connection, а не db.session — listener
+    работает внутри транзакции update, сессия недоступна.
+
+    Работает независимо от того, откуда вызвано удаление:
+    роут, CLI, seed, миграция.
+    """
+    if not target.is_deleted:
+        return
+
+    connection.execute(
+        Transaction.__table__.update()
+        .where(Transaction.__table__.c.project_id == target.id)
+        .where(Transaction.__table__.c.is_deleted == False)  # noqa: E712
+        .values(is_deleted=True)
+    )
