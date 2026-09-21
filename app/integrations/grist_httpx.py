@@ -46,7 +46,7 @@ class GristClient:
                         **kwargs,
                     )
                     response.raise_for_status()
-                    if response.status_code == 204:
+                    if response.status_code == 204 or not response.content:
                         return {}
                     return response.json()
 
@@ -133,8 +133,54 @@ class GristClient:
         )
         return {"added": total_added, "updated": total_updated}
 
+    async def prune_missing_records(self, table_id: str, keep_ids: set) -> int:
+        """
+        Удаляет из Grist записи, чьи ID2 отсутствуют в keep_ids.
 
-async def sync_projects_to_grist_httpx(projects: list) -> dict:
+        Нужно, потому что PUT /records делает upsert — обновляет и добавляет,
+        но не удаляет. Без prune soft-deleted записи копятся в Grist навсегда.
+
+        keep_ids — множество ID2, которые должны остаться. Например,
+        {p.id for p in projects} для активных проектов.
+
+        Возвращает число удалённых записей.
+        """
+        # 1. Получить все записи таблицы
+        data = await self._request("GET", f"tables/{table_id}/records")
+        all_records = data.get("records", [])
+
+        if not all_records:
+            return 0
+
+        # 2. Найти сироты — записи, чьи ID2 не входят в keep_ids
+        orphans: list[int] = []
+        for rec in all_records:
+            fields = rec.get("fields", {})
+            our_id = fields.get("ID2")
+            if our_id not in keep_ids:
+                orphans.append(rec["id"])  # внутренний Grist ID
+
+        if not orphans:
+            logger.debug("Prune %s: сирот нет", table_id)
+            return 0
+
+        # 3. Удалить пачкой
+        await self._request(
+            "POST",
+            f"tables/{table_id}/records/delete",
+            json=orphans,
+        )
+        logger.info("Prune %s: удалено %d записей", table_id, len(orphans))
+        return len(orphans)
+
+
+async def sync_projects_to_grist_httpx(projects: list, prune: bool = True) -> dict:
+    """
+    Синхронизирует проекты с Grist.
+
+    prune=True — удаляет из Grist проекты, которых нет в БД (soft-deleted).
+    prune=False — только upsert, без удаления.
+    """
     api_key = os.getenv("GRIST_API_KEY")
     doc_id = os.getenv("GRIST_DOC_ID")
     server = os.getenv("GRIST_SERVER", "https://docs.getgrist.com")
@@ -159,16 +205,32 @@ async def sync_projects_to_grist_httpx(projects: list) -> dict:
         for p in projects
     ]
 
-    if not records:
-        logger.info("Нет проектов для синхронизации.")
-        return {"added": 0, "updated": 0}
+    result = {"added": 0, "updated": 0, "deleted": 0}
 
-    result = await client.upsert_records("Projects", records)
-    logger.info("Проекты: добавлено %d, обновлено %d", result["added"], result["updated"])
+    if records:
+        upsert_result = await client.upsert_records("Projects", records)
+        result["added"] = upsert_result["added"]
+        result["updated"] = upsert_result["updated"]
+
+    if prune:
+        keep_ids = {p.id for p in projects}
+        result["deleted"] = await client.prune_missing_records("Projects", keep_ids)
+
+    logger.info(
+        "Проекты: добавлено %d, обновлено %d, удалено %d",
+        result["added"],
+        result["updated"],
+        result["deleted"],
+    )
     return result
 
 
-async def sync_transactions_to_grist_httpx(transactions: list) -> dict:
+async def sync_transactions_to_grist_httpx(transactions: list, prune: bool = True) -> dict:
+    """
+    Синхронизирует транзакции с Grist.
+
+    prune=True — удаляет из Grist транзакции, которых нет в БД.
+    """
     api_key = os.getenv("GRIST_API_KEY")
     doc_id = os.getenv("GRIST_DOC_ID")
     server = os.getenv("GRIST_SERVER", "https://docs.getgrist.com")
@@ -195,12 +257,23 @@ async def sync_transactions_to_grist_httpx(transactions: list) -> dict:
         for t in transactions
     ]
 
-    if not records:
-        logger.info("Нет транзакций для синхронизации.")
-        return {"added": 0, "updated": 0}
+    result = {"added": 0, "updated": 0, "deleted": 0}
 
-    result = await client.upsert_records("Transactions", records)
-    logger.info("Транзакции: добавлено %d, обновлено %d", result["added"], result["updated"])
+    if records:
+        upsert_result = await client.upsert_records("Transactions", records)
+        result["added"] = upsert_result["added"]
+        result["updated"] = upsert_result["updated"]
+
+    if prune:
+        keep_ids = {t.id for t in transactions}
+        result["deleted"] = await client.prune_missing_records("Transactions", keep_ids)
+
+    logger.info(
+        "Транзакции: добавлено %d, обновлено %d, удалено %d",
+        result["added"],
+        result["updated"],
+        result["deleted"],
+    )
     return result
 
 

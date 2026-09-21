@@ -227,7 +227,7 @@ async def test_sync_projects_sends_correct_records(monkeypatch, fake_project):
         return_value=httpx.Response(200, json={"addRecordIds": [1]})
     )
 
-    await sync_projects_to_grist_httpx([fake_project])
+    await sync_projects_to_grist_httpx([fake_project], prune=False)
 
     body = json.loads(route.calls.last.request.content)
     record = body["records"][0]
@@ -251,7 +251,7 @@ async def test_sync_projects_skips_empty_list(monkeypatch):
         return_value=httpx.Response(200, json={"addRecordIds": []})
     )
 
-    await sync_projects_to_grist_httpx([])
+    await sync_projects_to_grist_httpx([], prune=False)
 
     assert not route.called
 
@@ -271,7 +271,7 @@ async def test_sync_transactions_sends_correct_fields(monkeypatch, fake_transact
         "https://docs.getgrist.com/api/docs/test-doc/tables/Transactions/records"
     ).mock(return_value=httpx.Response(200, json={"addRecordIds": [42]}))
 
-    await sync_transactions_to_grist_httpx([fake_transaction])
+    await sync_transactions_to_grist_httpx([fake_transaction], prune=False)
 
     body = json.loads(route.calls.last.request.content)
     record = body["records"][0]
@@ -297,7 +297,7 @@ async def test_sync_transactions_skips_empty_list(monkeypatch):
         "https://docs.getgrist.com/api/docs/test-doc/tables/Transactions/records"
     ).mock(return_value=httpx.Response(200, json={"addRecordIds": []}))
 
-    await sync_transactions_to_grist_httpx([])
+    await sync_transactions_to_grist_httpx([], prune=False)
 
     assert not route.called
 
@@ -439,3 +439,97 @@ async def test_upsert_records_empty_list_no_request(grist_client):
     """Пустой список — без HTTP-запроса."""
     result = await grist_client.upsert_records("Projects", [])
     assert result == {"added": 0, "updated": 0}
+
+
+# ============================================================
+#   PRUNE — удаление сирот
+# ============================================================
+
+
+@respx.mock
+async def test_prune_deletes_orphan_records(grist_client):
+    """Сироты (ID2 нет в keep_ids) удаляются."""
+    respx.get("https://docs.getgrist.com/api/docs/test-doc-id/tables/Projects/records").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "records": [
+                    {"id": 10, "fields": {"ID2": 1}},  # живой
+                    {"id": 11, "fields": {"ID2": 2}},  # сирота
+                    {"id": 12, "fields": {"ID2": 5}},  # сирота
+                ]
+            },
+        )
+    )
+    delete_route = respx.post(
+        "https://docs.getgrist.com/api/docs/test-doc-id/tables/Projects/records/delete"
+    ).mock(return_value=httpx.Response(200, json={"deleted": 2}))
+
+    deleted = await grist_client.prune_missing_records("Projects", keep_ids={1})
+
+    assert deleted == 2
+    assert delete_route.called
+    body = json.loads(delete_route.calls.last.request.content)
+    assert sorted(body) == [11, 12]
+
+
+@respx.mock
+async def test_prune_no_orphans_no_delete(grist_client):
+    """Все ID в keep_ids — POST delete не вызывается."""
+    respx.get("https://docs.getgrist.com/api/docs/test-doc-id/tables/Projects/records").mock(
+        return_value=httpx.Response(
+            200,
+            json={"records": [{"id": 10, "fields": {"ID2": 1}}]},
+        )
+    )
+    delete_route = respx.post(
+        "https://docs.getgrist.com/api/docs/test-doc-id/tables/Projects/records/delete"
+    )
+
+    deleted = await grist_client.prune_missing_records("Projects", keep_ids={1, 2})
+
+    assert deleted == 0
+    assert not delete_route.called
+
+
+@respx.mock
+async def test_prune_empty_table_returns_zero(grist_client):
+    """Пустая таблица в Grist — 0 удалений."""
+    respx.get("https://docs.getgrist.com/api/docs/test-doc-id/tables/Projects/records").mock(
+        return_value=httpx.Response(200, json={"records": []})
+    )
+
+    deleted = await grist_client.prune_missing_records("Projects", keep_ids={1})
+
+    assert deleted == 0
+
+
+@respx.mock
+async def test_sync_projects_prunes_deleted(monkeypatch, fake_project):
+    """sync_projects с prune=True удаляет отсутствующие в БД проекты."""
+    monkeypatch.setenv("GRIST_API_KEY", "test-key")
+    monkeypatch.setenv("GRIST_DOC_ID", "test-doc")
+
+    respx.put("https://docs.getgrist.com/api/docs/test-doc/tables/Projects/records").mock(
+        return_value=httpx.Response(200, json={"updateRecordIds": [1]})
+    )
+    respx.get("https://docs.getgrist.com/api/docs/test-doc/tables/Projects/records").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "records": [
+                    {"id": 5, "fields": {"ID2": 1}},  # наш
+                    {"id": 6, "fields": {"ID2": 99}},  # сирота
+                ]
+            },
+        )
+    )
+    delete_route = respx.post(
+        "https://docs.getgrist.com/api/docs/test-doc/tables/Projects/records/delete"
+    ).mock(return_value=httpx.Response(200, json={"deleted": 1}))
+
+    result = await sync_projects_to_grist_httpx([fake_project], prune=True)
+
+    assert result == {"added": 0, "updated": 1, "deleted": 1}
+    assert delete_route.called
+    assert json.loads(delete_route.calls.last.request.content) == [6]
