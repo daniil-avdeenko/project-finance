@@ -15,6 +15,19 @@ def setup_logging(app):
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
+    for noisy in (
+        "httpx",
+        "httpcore",
+        "apscheduler.executors.default",
+        "apscheduler.scheduler",
+        "apscheduler.jobstores",
+        "gspread",
+        "googleapiclient",
+        "google.auth",
+        "urllib3",
+    ):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+
     # Файловый handler с ротацией
     file_handler = RotatingFileHandler(
         "logs/app.log",
