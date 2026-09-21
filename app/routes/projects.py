@@ -55,6 +55,10 @@ def index():
             end_date = datetime(selected_year, selected_month, last_day, 23, 59, 59, tzinfo=UTC)
             period_label = f"{calendar.month_name[selected_month]} {selected_year}"
 
+    # Активные проекты — используем как для статистики, так и для фильтрации транзакций
+    all_projects = Project.active().all()
+    active_project_ids = {p.id for p in all_projects}
+
     # Загружаем все транзакции за период одним разом (без удалённых)
     base_query = Transaction.active()
     if start_date:
@@ -63,6 +67,9 @@ def index():
         base_query = base_query.filter(Transaction.date <= end_date)
 
     all_transactions = base_query.all()
+
+    # Defense-in-depth: даже если каскадный soft delete не сработал
+    all_transactions = [t for t in all_transactions if t.project_id in active_project_ids]
 
     # Загружаем курсы ОДИН раз для всех валют
     codes = ProjectStatsService.collect_codes(all_transactions)
@@ -76,7 +83,6 @@ def index():
     for t in all_transactions:
         tx_by_project[t.project_id].append(t)
 
-    all_projects = Project.active().all()
     projects_stats = []
     for project in all_projects:
         p_stats = ProjectStatsService.calculate(tx_by_project[project.id], rates_map)
@@ -214,7 +220,9 @@ def project_edit(project_id):
 @login_required
 @admin_required
 def project_delete(project_id):
-    """Soft delete проекта (только для админов)."""
+    """
+    Soft delete проекта.
+    """
     project = Project.query.get_or_404(project_id)
     try:
         project.is_deleted = True
@@ -275,6 +283,7 @@ def chart():
     """
     now = datetime.now(UTC)
     projects = Project.active().all()
+    active_project_ids = {p.id for p in projects}
 
     month_labels = []
     month_ranges = []
@@ -316,6 +325,9 @@ def chart():
         .filter(Transaction.date >= period_start, Transaction.date <= period_end)
         .all()
     )
+
+    # Defense-in-depth: не учитываем транзакции удалённых проектов,
+    all_transactions = [t for t in all_transactions if t.project_id in active_project_ids]
 
     codes = ProjectStatsService.collect_codes(all_transactions)
     rates_map = get_rates_map(codes)
