@@ -167,3 +167,38 @@ async def test_send_success_formats_message():
     assert "✅" in body["text"]
     assert "Синхронизация завершена" in body["text"]
     assert "Добавлено 5 записей" in body["text"]
+
+
+# ============================================================
+#   ЛОГИРОВАНИЕ СЕТЕВЫХ ОШИБОК
+# ============================================================
+
+
+@respx.mock
+async def test_send_message_logs_request_error_type(caplog):
+    """При RequestError логируется тип исключения, не пустая строка."""
+    import logging
+
+    respx.post(SEND_URL).mock(side_effect=httpx.ReadError("Connection reset"))
+
+    with caplog.at_level(logging.ERROR):
+        result = await send_message("test")
+
+    assert result is False
+    assert "ReadError" in caplog.text
+    assert "sendMessage" in caplog.text
+
+
+@respx.mock
+async def test_send_message_logs_timeout(caplog):
+    """Таймаут логируется отдельно от прочих сетевых ошибок."""
+    import logging
+
+    respx.post(SEND_URL).mock(side_effect=httpx.ConnectTimeout("Timeout"))
+
+    with caplog.at_level(logging.ERROR):
+        result = await send_message("test")
+
+    assert result is False
+    assert "Таймаут" in caplog.text
+    assert "ConnectTimeout" in caplog.text
