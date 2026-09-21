@@ -65,6 +65,10 @@ def _format_digest(events: list[EventLog]) -> str:
                 f"🔄 <b>Grist sync:</b> +{p.get('projects_added', 0)} проектов, "
                 f"+{p.get('transactions_added', 0)} транзакций"
             )
+            deleted_p = p.get("projects_deleted", 0)
+            deleted_t = p.get("transactions_deleted", 0)
+            if deleted_p or deleted_t:
+                parts.append(f"🗑️ Удалено: {deleted_p} проектов, {deleted_t} транзакций")
 
     if "error" in by_type:
         for e in by_type["error"]:
@@ -151,8 +155,9 @@ async def job_sync_grist(app) -> None:
             t_result = await sync_transactions_to_grist_httpx(transactions)
 
             added = p_result.get("added", 0) + t_result.get("added", 0)
+            deleted = p_result.get("deleted", 0) + t_result.get("deleted", 0)
 
-            if added > 0:
+            if added > 0 or deleted > 0:
                 db.session.add(
                     EventLog(
                         event_type="grist_sync_summary",
@@ -161,12 +166,14 @@ async def job_sync_grist(app) -> None:
                             "transactions_added": t_result.get("added", 0),
                             "projects_updated": p_result.get("updated", 0),
                             "transactions_updated": t_result.get("updated", 0),
+                            "projects_deleted": p_result.get("deleted", 0),
+                            "transactions_deleted": t_result.get("deleted", 0),
                         },
                         status="pending",
                     )
                 )
                 db.session.commit()
-                logger.info("Grist sync: added=%d", added)
+                logger.info("Grist sync: added=%d, deleted=%d", added, deleted)
 
         except Exception as e:
             db.session.rollback()
