@@ -57,6 +57,50 @@ def test_chart_returns_data(auth_client, app):
     assert "Проект для графика" in text
 
 
+def test_dashboard_ignores_transactions_of_deleted_projects(auth_client, app):
+    """Транзакции удалённых проектов не учитываются на дашборде."""
+    from datetime import UTC, datetime
+
+    with app.app_context():
+        active_project = Project(name="Active")
+        deleted_project = Project(name="Deleted", is_deleted=True)
+        cat = IncomeCategory(name="I")
+        _db.session.add_all([active_project, deleted_project, cat])
+        _db.session.commit()
+
+        # Активная транзакция: 1000
+        _db.session.add(
+            Transaction(
+                project_id=active_project.id,
+                type="income",
+                category_id=cat.id,
+                amount=1000,
+                currency="RUB",
+                date=datetime(2026, 9, 1, tzinfo=UTC),
+            )
+        )
+        # Транзакция удалённого проекта: 5000 — не должна попасть
+        _db.session.add(
+            Transaction(
+                project_id=deleted_project.id,
+                type="income",
+                category_id=cat.id,
+                amount=5000,
+                currency="RUB",
+                is_deleted=False,
+                date=datetime(2026, 9, 1, tzinfo=UTC),
+            )
+        )
+        _db.session.commit()
+
+    response = auth_client.get("/")
+    text = response.get_data(as_text=True)
+
+    assert "1 000" in text
+    assert "6 000" not in text
+    assert "5 000" not in text
+
+
 # ============================================================
 #   СПИСКИ ДЛЯ АДМИНА
 # ============================================================
