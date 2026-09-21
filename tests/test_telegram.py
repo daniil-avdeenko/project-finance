@@ -179,10 +179,11 @@ async def test_send_message_logs_request_error_type(caplog):
     """При RequestError логируется тип исключения, не пустая строка."""
     import logging
 
+    caplog.set_level(logging.ERROR, logger="app.integrations.telegram")
+
     respx.post(SEND_URL).mock(side_effect=httpx.ReadError("Connection reset"))
 
-    with caplog.at_level(logging.ERROR):
-        result = await send_message("test")
+    result = await send_message("test")
 
     assert result is False
     assert "ReadError" in caplog.text
@@ -194,10 +195,11 @@ async def test_send_message_logs_timeout(caplog):
     """Таймаут логируется отдельно от прочих сетевых ошибок."""
     import logging
 
+    caplog.set_level(logging.ERROR, logger="app.integrations.telegram")
+
     respx.post(SEND_URL).mock(side_effect=httpx.ConnectTimeout("Timeout"))
 
-    with caplog.at_level(logging.ERROR):
-        result = await send_message("test")
+    result = await send_message("test")
 
     assert result is False
     assert "Таймаут" in caplog.text
