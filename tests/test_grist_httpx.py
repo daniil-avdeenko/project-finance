@@ -378,3 +378,64 @@ async def test_sync_rates_skips_empty_list(monkeypatch):
     await sync_rates_to_grist_httpx([])
 
     assert not route.called
+
+
+# ============================================================
+#   тесты CHUNKING
+# ============================================================
+
+
+@respx.mock
+async def test_upsert_records_chunks_large_payload(grist_client):
+    """250 записей → 3 чанка (100 + 100 + 50)."""
+    route = respx.put(
+        "https://docs.getgrist.com/api/docs/test-doc-id/tables/Transactions/records"
+    ).mock(return_value=httpx.Response(200, json={"addRecordIds": [1]}))
+
+    records = [{"require": {"id": i}, "fields": {}} for i in range(250)]
+    await grist_client.upsert_records("Transactions", records)
+
+    assert route.call_count == 3
+
+    sizes = [len(json.loads(call.request.content)["records"]) for call in route.calls]
+    assert sizes == [100, 100, 50]
+
+
+@respx.mock
+async def test_upsert_records_aggregates_stats_across_chunks(grist_client):
+    """Статистика суммируется по всем чанкам."""
+    route = respx.put("https://docs.getgrist.com/api/docs/test-doc-id/tables/Transactions/records")
+    route.side_effect = [
+        httpx.Response(200, json={"addRecordIds": [1] * 10, "updateRecordIds": [1] * 5}),
+        httpx.Response(200, json={"addRecordIds": [1] * 20, "updateRecordIds": []}),
+    ]
+
+    records = [{"require": {"id": i}, "fields": {}} for i in range(150)]
+    result = await grist_client.upsert_records("Transactions", records)
+
+    assert result == {"added": 30, "updated": 5}
+
+
+@respx.mock
+async def test_upsert_records_stops_on_chunk_failure(grist_client):
+    """Если чанк упал после retry — остальные чанки не отправляются."""
+    route = respx.put("https://docs.getgrist.com/api/docs/test-doc-id/tables/Transactions/records")
+    # Первый чанк — OK, второй — 500 (после retry тоже 500, потому что HTTPStatusError не ретраится)
+    route.side_effect = [
+        httpx.Response(200, json={"addRecordIds": []}),
+        httpx.Response(500),
+    ]
+
+    records = [{"require": {"id": i}, "fields": {}} for i in range(250)]
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await grist_client.upsert_records("Transactions", records)
+
+    # Должно быть 2 запроса: успешный чанк 1 + упавший чанк 2 (без retry, т.к. 500)
+    assert route.call_count == 2
+
+
+async def test_upsert_records_empty_list_no_request(grist_client):
+    """Пустой список — без HTTP-запроса."""
+    result = await grist_client.upsert_records("Projects", [])
+    assert result == {"added": 0, "updated": 0}

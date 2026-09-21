@@ -12,6 +12,7 @@ class GristClient:
 
     MAX_RETRIES = 3
     BACKOFF_BASE = 1.0  # секунды; в тестах переопределяем на маленькое
+    CHUNK_SIZE = 100  # максимум записей в одном PUT
 
     def __init__(self, api_key: str, doc_id: str, server: str = "https://docs.getgrist.com"):
         self.api_key = api_key
@@ -91,13 +92,46 @@ class GristClient:
         raise RuntimeError("Retry loop exited without result or exception")
 
     async def upsert_records(self, table_id: str, records: list[dict]) -> dict:
-        """Upsert записей. Возвращает только статистику."""
-        payload = {"records": records}
-        response = await self._request("PUT", f"tables/{table_id}/records", json=payload)
-        return {
-            "added": len(response.get("addRecordIds", [])),
-            "updated": len(response.get("updateRecordIds", [])),
-        }
+        """
+        Upsert записей чанками по CHUNK_SIZE.
+
+        Режем на чанки по 100 и агрегируем
+        статистику.
+        При ошибке в любом чанке — raise наверх, остальные не отправляем.
+        """
+        if not records:
+            return {"added": 0, "updated": 0}
+
+        total_added = 0
+        total_updated = 0
+        total_chunks = (len(records) + self.CHUNK_SIZE - 1) // self.CHUNK_SIZE
+
+        for i in range(0, len(records), self.CHUNK_SIZE):
+            chunk = records[i : i + self.CHUNK_SIZE]
+            chunk_num = i // self.CHUNK_SIZE + 1
+
+            logger.debug(
+                "Upsert %s: чанк %d/%d, записей %d",
+                table_id,
+                chunk_num,
+                total_chunks,
+                len(chunk),
+            )
+
+            payload = {"records": chunk}
+            response = await self._request("PUT", f"tables/{table_id}/records", json=payload)
+
+            total_added += len(response.get("addRecordIds", []))
+            total_updated += len(response.get("updateRecordIds", []))
+
+        logger.info(
+            "Upsert %s: %d чанков, added=%d, updated=%d",
+            table_id,
+            total_chunks,
+            total_added,
+            total_updated,
+        )
+        return {"added": total_added, "updated": total_updated}
 
 
 async def sync_projects_to_grist_httpx(projects: list) -> dict:
