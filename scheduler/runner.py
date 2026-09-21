@@ -10,6 +10,7 @@ import contextlib
 import logging
 import os
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 from aiohttp import web
@@ -82,6 +83,7 @@ async def _run() -> None:
         id="sync_grist",
         max_instances=1,
         coalesce=True,
+        next_run_time=datetime.now(UTC),
     )
     scheduler.add_job(
         job_healthcheck,
@@ -98,6 +100,7 @@ async def _run() -> None:
         id="scrape_cbr",
         max_instances=1,
         coalesce=True,
+        next_run_time=datetime.now(UTC),
     )
     scheduler.add_job(
         job_sync_sheets,
@@ -106,6 +109,7 @@ async def _run() -> None:
         id="sync_sheets",
         max_instances=1,
         coalesce=True,
+        next_run_time=datetime.now(UTC),
     )
 
     scheduler.start()
