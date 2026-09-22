@@ -555,6 +555,36 @@ def test_deleted_transaction_not_in_totals(auth_client, app):
     assert "6 000" not in text
 
 
+def test_transaction_create_rejects_deleted_project(auth_client, app):
+    """Нельзя создать транзакцию для удалённого проекта."""
+    from datetime import UTC, datetime
+
+    with app.app_context():
+        project = Project(name="Удалённый", is_deleted=True)
+        cat = IncomeCategory(name="Доход")
+        _db.session.add_all([project, cat])
+        _db.session.commit()
+        p_id = project.id
+        c_id = cat.id
+
+    auth_client.post(
+        "/transactions/create",
+        data={
+            "type": "income",
+            "project_id": p_id,
+            "category_id": c_id,
+            "amount": "1000",
+            "currency": "RUB",
+            "description": "к удалённому",
+            "date": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M"),
+        },
+        follow_redirects=True,
+    )
+
+    with app.app_context():
+        assert Transaction.query.filter_by(project_id=p_id).count() == 0
+
+
 # ============================================================
 #   CRUD КАТЕГОРИЙ ДОХОДОВ
 # ============================================================
