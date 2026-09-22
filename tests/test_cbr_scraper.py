@@ -140,6 +140,7 @@ class _FakePage:
         self._rows = rows
         self.goto_called = False
         self.selector_waited = False
+        self.init_script_called = False
 
     async def goto(self, url: str, **_kwargs) -> None:
         self.goto_called = True
@@ -148,6 +149,9 @@ class _FakePage:
     async def wait_for_selector(self, selector: str, **_kwargs) -> None:
         self.selector_waited = True
         assert selector == "table.data"
+
+    async def add_init_script(self, script: str) -> None:
+        self.init_script_called = True
 
     def locator(self, _selector: str):
         return self
@@ -161,7 +165,7 @@ class _FakeBrowser:
         self._page = page
         self.closed = False
 
-    async def new_page(self) -> _FakePage:
+    async def new_page(self, **_kwargs) -> _FakePage:
         return self._page
 
     async def close(self) -> None:
