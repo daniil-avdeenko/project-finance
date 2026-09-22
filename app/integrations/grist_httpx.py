@@ -31,12 +31,15 @@ class GristClient:
 
         - 4xx/5xx — поднимаем HTTPStatusError без retry
         - httpx.RequestError (ReadError, ConnectError, Timeout) — retry с backoff
+
+        AsyncClient создаётся один раз на весь метод — retry переиспользует
+        пул соединений.
         """
         url = f"{self.base_url}/{endpoint}"
         last_exc: httpx.RequestError | None = None
 
-        for attempt in range(1, self.MAX_RETRIES + 1):
-            async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient() as client:
+            for attempt in range(1, self.MAX_RETRIES + 1):
                 try:
                     response = await client.request(
                         method=method,
