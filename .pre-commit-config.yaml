@@ -8,7 +8,7 @@ exclude: |
     logs/|
     __pycache__/|
     \.pytest_cache/|
-    migrations/
+    migrations/|
     credentials\.json
   )
 
