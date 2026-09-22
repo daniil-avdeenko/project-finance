@@ -89,10 +89,28 @@ async def scrape_cbr_rates(target_date: date | None = None) -> list[ScrapedRate]
 
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.launch(
+                headless=True,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                ],
+            )
             try:
-                page = await browser.new_page()
-                await page.goto(CBR_URL, wait_until="networkidle", timeout=PAGE_TIMEOUT_MS)
+                page = await browser.new_page(
+                    user_agent=(
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/131.0.0.0 Safari/537.36"
+                    ),
+                    locale="ru-RU",
+                    timezone_id="Europe/Moscow",
+                )
+                await page.add_init_script(
+                    "Object.defineProperty(navigator, 'webdriver', " "{get: () => undefined});"
+                )
+                await page.goto(CBR_URL, wait_until="domcontentloaded", timeout=PAGE_TIMEOUT_MS)
                 await page.wait_for_selector(TABLE_SELECTOR, timeout=PAGE_TIMEOUT_MS)
 
                 rows = await page.locator(ROW_SELECTOR).all()
