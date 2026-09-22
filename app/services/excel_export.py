@@ -52,19 +52,6 @@ def _autosize_columns(
         ws.column_dimensions[get_column_letter(col_idx)].width = width
 
 
-def make_xlsx_response(workbook: Workbook, filename: str) -> Response:
-    """Сериализует Workbook в HTTP-ответ с правильными заголовками."""
-    buffer = BytesIO()
-    workbook.save(buffer)
-    buffer.seek(0)
-
-    return Response(
-        buffer.getvalue(),
-        mimetype=MIME_XLSX,
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
-
-
 def _new_workbook() -> Workbook:
     """Убираем дефолтный лист — будем создавать свой с именем."""
     wb = Workbook()
@@ -182,3 +169,19 @@ def build_employees_workbook(employees: list) -> Workbook:
 
     _autosize_columns(ws)
     return wb
+
+
+def make_xlsx_response(workbook: Workbook, filename: str) -> Response:
+    buffer = BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+
+    return Response(
+        buffer.getvalue(),
+        mimetype=MIME_XLSX,
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+            "Pragma": "no-cache",
+        },
+    )
