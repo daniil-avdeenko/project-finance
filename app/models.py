@@ -270,6 +270,30 @@ class CurrencyRate(db.Model):
         return f"<CurrencyRate {self.code} {self.rate_date}={self.rate_rub}>"
 
 
+class SyncLog(db.Model):
+    """
+    Лог синхронизаций с внешними сервисами.
+
+    Одна запись = одна попытка. Хранит результат, количество записей
+    и текст ошибки. Используется на дашборде для отображения времени
+    последней синхронизации.
+    """
+
+    __tablename__ = "sync_log"
+
+    id = db.Column(db.Integer, primary_key=True)
+    sync_type = db.Column(db.String(20), nullable=False, index=True)  # 'grist', 'sheets'
+    status = db.Column(db.String(20), nullable=False, default="success")  # 'success', 'error'
+    synced_at = db.Column(
+        db.DateTime, nullable=False, default=lambda: datetime.now(UTC), index=True
+    )
+    records_count = db.Column(db.Integer, nullable=True)
+    error_message = db.Column(db.Text, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<SyncLog {self.sync_type} {self.status} at {self.synced_at}>"
+
+
 # ============================================================
 #   Каскадный soft delete
 # ============================================================
