@@ -108,9 +108,9 @@ class Project(db.Model):
         return round(self.total_income - self.total_expense, 2)
 
     @property
-    def profitability(self):
+    def profitability(self) -> float:
         if self.total_income == 0:
-            return 0
+            return 0.0
         return round((self.profit / self.total_income) * 100, 2)
 
     @classmethod
