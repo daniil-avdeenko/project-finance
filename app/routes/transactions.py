@@ -137,9 +137,9 @@ def transaction_create():
         set_category_choices(form, t)
 
         if form.validate_on_submit():
-            project = db.session.get(Project, form.project_id.data)
+            project = Project.active().filter_by(id=form.project_id.data).first()
             if not project:
-                flash("Проект не найден", "danger")
+                flash("Проект не найден или удалён", "danger")
                 return redirect(url_for("main.transaction_create"))
 
             date_error = _validate_transaction_date(form, project)
@@ -220,9 +220,9 @@ def transaction_edit(transaction_id):
         set_category_choices(form, t)
 
         if form.validate_on_submit():
-            project = db.session.get(Project, form.project_id.data)
+            project = Project.active().filter_by(id=form.project_id.data).first()
             if not project:
-                flash("Проект не найден", "danger")
+                flash("Проект не найден или удалён", "danger")
                 return redirect(url_for("main.transaction_edit", transaction_id=transaction_id))
 
             date_error = _validate_transaction_date(form, project)
