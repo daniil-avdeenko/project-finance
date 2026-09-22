@@ -6,11 +6,25 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1><i class="fas fa-exchange-alt me-2"></i>Транзакции</h1>
     <div>
-        <a href="{{ url_for('main.export_transactions_csv') }}" class="btn btn-success me-2">
-            <i class="fas fa-file-csv me-1"></i>Экспорт CSV
-        </a>
+        <div class="btn-group">
+            <button type="button" class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="fas fa-download me-1"></i>Экспорт
+            </button>
+            <ul class="dropdown-menu">
+                <li>
+                    <a class="dropdown-item" href="{{ url_for('main.export_projects_csv') }}">
+                        <i class="fas fa-file-csv me-2"></i>CSV
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="{{ url_for('main.export_projects_xlsx') }}">
+                        <i class="fas fa-file-excel me-2 text-success"></i>Excel (.xlsx)
+                    </a>
+                </li>
+            </ul>
+        </div>
         {% if current_user.is_admin() %}
-                <a href="{{ url_for('main.transaction_create', next=request.full_path.rstrip('?')) }}" class="btn btn-primary">
+        <a href="{{ url_for('main.transaction_create', next=request.full_path.rstrip('?')) }}" class="btn btn-primary">
             <i class="fas fa-plus me-1"></i>Добавить транзакцию
         </a>
         {% endif %}
@@ -21,7 +35,8 @@
 <form method="get" class="row g-2 mb-4 align-items-end">
     <div class="col-md-2">
         <label for="date_from" class="form-label small">Транзакции с</label>
-        <input type="date" name="date_from" id="date_from" class="form-control form-control-sm" value="{{ date_from or '' }}">
+        <input type="date" name="date_from" id="date_from" class="form-control form-control-sm"
+               value="{{ date_from or '' }}">
     </div>
     <div class="col-md-2">
         <label for="date_to" class="form-label small">по</label>
@@ -31,8 +46,10 @@
         <label for="type_filter" class="form-label small">Тип</label>
         <select name="type" id="type_filter" class="form-select form-select-sm">
             <option value="">Все</option>
-            <option value="income" {% if type_filter == 'income' %}selected{% endif %}>Доходы</option>
-            <option value="expense" {% if type_filter == 'expense' %}selected{% endif %}>Расходы</option>
+            <option value="income" {% if type_filter==
+            'income' %}selected{% endif %}>Доходы</option>
+            <option value="expense" {% if type_filter==
+            'expense' %}selected{% endif %}>Расходы</option>
         </select>
     </div>
     <div class="col-md-2">
@@ -40,7 +57,7 @@
         <select name="currency" id="currency_filter" class="form-select form-select-sm">
             <option value="">Все</option>
             {% for cur in currencies_for_filter %}
-            <option value="{{ cur }}" {% if currency_filter == cur %}selected{% endif %}>{{ cur }}</option>
+            <option value="{{ cur }}" {% if currency_filter== cur %}selected{% endif %}>{{ cur }}</option>
             {% endfor %}
         </select>
     </div>
@@ -49,7 +66,7 @@
         <select name="project" id="project_filter" class="form-select form-select-sm">
             <option value="">Все проекты</option>
             {% for p in all_projects_for_filter %}
-            <option value="{{ p.id }}" {% if project_filter == p.id %}selected{% endif %}>{{ p.name }}</option>
+            <option value="{{ p.id }}" {% if project_filter== p.id %}selected{% endif %}>{{ p.name }}</option>
             {% endfor %}
         </select>
     </div>
@@ -126,7 +143,8 @@
                class="btn btn-sm btn-outline-secondary me-1" title="Редактировать" onclick="event.stopPropagation();">
                 <i class="fas fa-pen"></i>
             </a>
-            <form method="post" action="{{ url_for('main.transaction_delete', transaction_id=t.id, next=request.full_path.rstrip('?')) }}"
+            <form method="post"
+                  action="{{ url_for('main.transaction_delete', transaction_id=t.id, next=request.full_path.rstrip('?')) }}"
                   style="display:inline;" onclick="event.stopPropagation();">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="button" class="btn btn-sm btn-outline-danger"
@@ -164,7 +182,8 @@
         {% if p %}
         <li class="page-item {% if p == pagination.page %}active{% endif %}">
             <a class="page-link"
-               href="{{ url_for('main.transactions_list', page=p, date_from=date_from, date_to=date_to, type=type_filter, currency=currency_filter, project=project_filter) }}">{{ p }}</a>
+               href="{{ url_for('main.transactions_list', page=p, date_from=date_from, date_to=date_to, type=type_filter, currency=currency_filter, project=project_filter) }}">{{
+                p }}</a>
         </li>
         {% else %}
         <li class="page-item disabled"><span class="page-link">…</span></li>
