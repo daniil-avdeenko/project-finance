@@ -10,14 +10,14 @@
             <button type="button" class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown">
                 <i class="fas fa-download me-1"></i>Экспорт
             </button>
-            <ul class="dropdown-menu">
+                        <ul class="dropdown-menu">
                 <li>
-                    <a class="dropdown-item" href="{{ url_for('main.export_projects_csv') }}">
+                    <a class="dropdown-item" href="{{ url_for('main.export_transactions_csv') }}">
                         <i class="fas fa-file-csv me-2"></i>CSV
                     </a>
                 </li>
                 <li>
-                    <a class="dropdown-item" href="{{ url_for('main.export_projects_xlsx') }}">
+                    <a class="dropdown-item" href="{{ url_for('main.export_transactions_xlsx') }}">
                         <i class="fas fa-file-excel me-2 text-success"></i>Excel (.xlsx)
                     </a>
                 </li>
