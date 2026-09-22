@@ -15,6 +15,7 @@ from app.helpers import get_next_url, make_csv_response, safe_redirect
 from app.models import EmployeeProject, ExpenseCategory, IncomeCategory, Project, Transaction
 from app.routes.blueprint import main_bp
 from app.services.currency_service import get_rates_map
+from app.services.excel_export import build_projects_workbook, make_xlsx_response
 from app.services.project_stats import ProjectStatsService
 
 
@@ -273,6 +274,15 @@ def export_projects_csv():
     csv_content = si.getvalue()
     si.close()
     return make_csv_response(csv_content, "projects_export.csv")
+
+
+@main_bp.route("/projects/export/xlsx")
+@login_required
+def export_projects_xlsx():
+    """Экспорт активных проектов в Excel (.xlsx)."""
+    projects = Project.active().all()
+    wb = build_projects_workbook(projects)
+    return make_xlsx_response(wb, "projects_export.xlsx")
 
 
 @main_bp.route("/chart")

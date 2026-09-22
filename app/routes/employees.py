@@ -11,6 +11,7 @@ from app.forms import EmployeeForm
 from app.helpers import get_next_url, make_csv_response, safe_redirect
 from app.models import Employee, EmployeeProject, Project
 from app.routes.blueprint import main_bp
+from app.services.excel_export import build_employees_workbook, make_xlsx_response
 
 
 def parse_project_roles(project_roles_json: str) -> list[dict]:
@@ -309,6 +310,15 @@ def export_employees_csv():
     csv_content = si.getvalue()
     si.close()
     return make_csv_response(csv_content, "employees_export.csv")
+
+
+@main_bp.route("/employees/export/xlsx")
+@login_required
+def export_employees_xlsx():
+    """Экспорт всех сотрудников в Excel (.xlsx)."""
+    employees = Employee.query.all()
+    wb = build_employees_workbook(employees)
+    return make_xlsx_response(wb, "employees_export.xlsx")
 
 
 @main_bp.route("/api/roles")
