@@ -24,6 +24,8 @@ def app():
         {
             "TESTING": True,
             "WTF_CSRF_ENABLED": False,
+            # Отключаем fingerprint-проверку сессии — в тестах
+            "SESSION_PROTECTION": None,
         }
     )
 
