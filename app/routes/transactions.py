@@ -4,6 +4,7 @@ from io import StringIO
 
 from flask import flash, redirect, render_template, request, url_for
 from flask_login import login_required
+from sqlalchemy.orm import joinedload
 
 from app import db
 from app.decorators import admin_required
@@ -11,6 +12,8 @@ from app.forms import TransactionForm
 from app.helpers import get_next_url, make_csv_response, safe_redirect
 from app.models import ExpenseCategory, IncomeCategory, Project, Transaction
 from app.routes.blueprint import main_bp
+from app.services.currency_service import get_rates_map
+from app.services.excel_export import build_transactions_workbook, make_xlsx_response
 
 
 def set_category_choices(form, type_filter):
@@ -338,3 +341,22 @@ def export_transactions_csv():
     csv_content = si.getvalue()
     si.close()
     return make_csv_response(csv_content, "transactions_export.csv")
+
+
+@main_bp.route("/transactions/export/xlsx")
+@login_required
+def export_transactions_xlsx():
+    """Экспорт активных транзакций в Excel (.xlsx)."""
+    transactions = (
+        Transaction.active()
+        .options(joinedload(Transaction.project))
+        .order_by(Transaction.date.desc())
+        .all()
+    )
+
+    # Курсы для всех валют — один запрос вместо N+1
+    codes = {t.currency for t in transactions if t.currency}
+    rates_map = get_rates_map(codes)
+
+    wb = build_transactions_workbook(transactions, rates_map)
+    return make_xlsx_response(wb, "transactions_export.xlsx")
