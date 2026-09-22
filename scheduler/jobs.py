@@ -126,6 +126,9 @@ async def job_process_events(app) -> None:
 
         try:
             db.session.commit()
+        except asyncio.CancelledError:
+            logger.info("job_process_events отменён (shutdown)")
+            raise
         except Exception:
             db.session.rollback()
             logger.exception("Failed to update event statuses")
