@@ -60,6 +60,9 @@ def create_app():
         app.logger.warning("SECRET_KEY не установлен, используется dev-значение")
 
     app.config["SECRET_KEY"] = secret_key
+    app.config["SESSION_COOKIE_SECURE"] = flask_env == "production"
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
     database_url = os.getenv("DATABASE_URL")
 
@@ -98,6 +101,7 @@ def create_app():
         "yes",
     )
     login_manager.init_app(app)
+    login_manager.session_protection = "strong"
     login_manager.login_view = "auth.login"
     login_manager.login_message = "Пожалуйста, войдите для доступа."
 
