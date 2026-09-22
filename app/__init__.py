@@ -94,12 +94,12 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
     csrf.init_app(app)
-    limiter.init_app(app)
     app.config["RATELIMIT_ENABLED"] = os.getenv("RATELIMIT_ENABLED", "true").lower() in (
         "1",
         "true",
         "yes",
     )
+    limiter.init_app(app)
     login_manager.init_app(app)
     login_manager.session_protection = "strong"
     login_manager.login_view = "auth.login"
