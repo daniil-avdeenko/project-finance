@@ -1,0 +1,51 @@
+services:
+  web:
+    build: .
+    image: project-finance:latest
+    container_name: pf-web
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      FLASK_ENV: production
+      DATABASE_URL: sqlite:////app/instance/project_finance.db
+    volumes:
+      - ./logs:/app/logs
+      - ./instance:/app/instance
+      - ./credentials.json:/app/credentials.json:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  scheduler:
+    build: .
+    image: project-finance:latest
+    container_name: pf-scheduler
+    restart: unless-stopped
+    command: python -m scheduler.runner
+    env_file:
+      - .env
+    environment:
+      FLASK_ENV: production
+      DATABASE_URL: sqlite:////app/instance/project_finance.db
+      HEALTHCHECK_ENABLED: "true"
+      HEALTHCHECK_PORT: "8080"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./logs:/app/logs
+      - ./instance:/app/instance
+      - ./credentials.json:/app/credentials.json:ro
+    depends_on:
+      - web
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

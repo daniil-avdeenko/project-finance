@@ -1,0 +1,61 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.py[cod]
+*.egg-info
+.pytest_cache
+.coverage
+htmlcov
+.mypy_cache
+.ruff_cache
+
+# Virtual envs
+.venv
+venv
+env
+
+# Секреты
+.env
+.env.*
+!.env.example
+credentials.json
+*.pem
+
+# Логи и БД
+logs
+*.log
+*.db
+*.sqlite3
+instance
+
+# IDE
+.idea
+.vscode
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Не нужное в образе
+tests
+.github
+README.md
+migrations/*.pyc
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Pre-commit
+.pre-commit-config.yaml
+.gitleaks.toml
+
+# Утилиты разработчика
+scripts/check_sheets.py
+scripts/check_cbr.py
