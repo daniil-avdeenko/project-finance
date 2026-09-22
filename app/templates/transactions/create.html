@@ -60,12 +60,12 @@
     // ===== КАТЕГОРИИ ЗАВИСЯТ ОТ ТИПА =====
     const incomeCategories = [
         {% for cat in income_categories %}
-            { id: {{ cat.id }}, name: "{{ cat.name }}" },
+            { id: {{ cat.id }}, name: {{ cat.name | tojson }} },
         {% endfor %}
     ];
     const expenseCategories = [
         {% for cat in expense_categories %}
-            { id: {{ cat.id }}, name: "{{ cat.name }}" },
+            { id: {{ cat.id }}, name: {{ cat.name | tojson }} },
         {% endfor %}
     ];
 
@@ -93,7 +93,7 @@
     }
 
     document.getElementById('transaction_type').addEventListener('change', updateCategories);
-    window.onload = updateCategories;
+    document.addEventListener('DOMContentLoaded', updateCategories);
 
 
     // ===== ФОРМАТИРОВАНИЕ СУММЫ С СОХРАНЕНИЕМ ПОЗИЦИИ КУРСОРА =====
