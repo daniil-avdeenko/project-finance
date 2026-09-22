@@ -116,11 +116,12 @@ def index():
             }
         )
 
-    # Сводка актуальных курсов ЦБ для USD/EUR
-    from app.services.currency_service import get_rate
-
-    usd_rate = get_rate("USD")
-    eur_rate = get_rate("EUR")
+    # Сводка актуальных курсов ЦБ для USD/EUR — один запрос вместо двух
+    header_rates = get_rates_map({"USD", "EUR"})
+    usd_rates = header_rates.get("USD", [])
+    eur_rates = header_rates.get("EUR", [])
+    usd_rate = usd_rates[0] if usd_rates else None
+    eur_rate = eur_rates[0] if eur_rates else None
 
     return render_template(
         "index.html",
