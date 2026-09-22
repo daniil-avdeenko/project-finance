@@ -69,8 +69,8 @@
             <div class="text-muted position-absolute"
                  style="top: 100%; left: 50%; transform: translateX(-50%);
                         font-size: 0.68rem; white-space: nowrap; padding-top: 3px;"
-                 title="Последняя синхронизация: {{ last_grist_sync.synced_at.strftime('%d.%m.%Y %H:%M') }} UTC">
-                {{ last_grist_sync.synced_at.strftime('%d.%m %H:%M') }}
+                 title="Синхронизовано с Grist: {{ last_grist_sync.synced_at | localtime('%d.%m.%Y %H:%M МСК') }}">
+                {{ last_grist_sync.synced_at | localtime }}
                 {% if last_grist_sync.status == 'error' %}<span class="text-danger">⚠</span>{% endif %}
             </div>
             {% endif %}
@@ -89,7 +89,7 @@
             <div class="text-muted position-absolute"
                  style="top: 100%; left: 50%; transform: translateX(-50%);
                         font-size: 0.68rem; white-space: nowrap; padding-top: 3px;"
-                 title="Последняя синхронизация: {{ last_sheets_sync.synced_at.strftime('%d.%m.%Y %H:%M') }} UTC">
+                 title="Синхронизовано с Google Sheets: {{ last_sheets_sync.synced_at | localtime('%d.%m.%Y %H:%M МСК') }}">
                 {{ last_sheets_sync.synced_at.strftime('%d.%m %H:%M') }}
                 {% if last_sheets_sync.status == 'error' %}<span class="text-danger">⚠</span>{% endif %}
             </div>

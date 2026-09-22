@@ -125,6 +125,14 @@ def create_app():
         except (ValueError, TypeError):
             return str(value)
 
+    # Глобальный фильтр для времени в МСК
+    @app.template_filter("localtime")
+    def localtime_filter(value, fmt="%d.%m %H:%M"):
+        """UTC → Europe/Moscow. Хранилище в UTC, показ в локальном."""
+        from app.services.sync_service import format_sync_time
+
+        return format_sync_time(value, fmt)
+
     # Обработчики ошибок
     @app.errorhandler(404)
     def not_found_error(error):

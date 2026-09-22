@@ -7,6 +7,8 @@
 """
 
 import logging
+from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 from app import db
 from app.models import SyncLog
@@ -36,3 +38,20 @@ def log_sync(
 def get_last_sync(sync_type: str) -> SyncLog | None:
     """Возвращает последнюю запись о синхронизации данного типа."""
     return SyncLog.query.filter_by(sync_type=sync_type).order_by(SyncLog.synced_at.desc()).first()
+
+
+# Часовой пояс для отображения. Хранится в UTC, показывается в MSK.
+DISPLAY_TZ = ZoneInfo("Europe/Moscow")
+
+
+def format_sync_time(dt: datetime | None, fmt: str = "%d.%m %H:%M") -> str:
+    """
+    Форматирует UTC-время из БД в локальное (Europe/Moscow).
+
+    SQLite возвращает naive datetime — считаем её UTC.
+    """
+    if dt is None:
+        return "—"
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(DISPLAY_TZ).strftime(fmt)
