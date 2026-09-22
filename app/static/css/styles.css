@@ -200,3 +200,9 @@ body {
 .custom-toast-info {
     border-left-color: #0d6efd;
 }
+
+/* Кнопки интеграций на дашборде — одинаковая ширина */
+.dashboard-btn {
+    min-width: 125px;
+    text-align: center;
+}
