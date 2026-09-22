@@ -3,6 +3,9 @@
 В scheduler вызывается через asyncio.to_thread, чтобы не блокировать event loop.
 """
 
+import base64
+import binascii
+import json
 import logging
 import os
 from pathlib import Path
@@ -52,10 +55,26 @@ VALID_CURRENCIES = ["RUB", "USD", "EUR"]
 
 
 def get_client() -> gspread.Client:
-    """Авторизует gspread через service account."""
+    """
+    Авторизует gspread через service account.
+
+    Два источника credentials:
+    - GOOGLE_CREDENTIALS_B64 — base64-содержимое JSON. Приоритет.
+      Используется на Railway, где нельзя положить файл рядом с кодом.
+    - GOOGLE_CREDENTIALS_PATH — путь к файлу (локальная разработка).
+    """
+    b64 = os.getenv("GOOGLE_CREDENTIALS_B64", "").strip()
+    if b64:
+        try:
+            info = json.loads(base64.b64decode(b64).decode("utf-8"))
+        except (ValueError, binascii.Error) as e:
+            raise ValueError(f"GOOGLE_CREDENTIALS_B64 не декодируется: {e}") from e
+        creds = Credentials.from_service_account_info(info, scopes=SCOPES)
+        return gspread.authorize(creds)
+
     creds_path = os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json")
     if not Path(creds_path).exists():
-        raise FileNotFoundError(f"Файл с учетными данными не найден: {creds_path}")
+        raise FileNotFoundError(f"Не найден файл {creds_path} и не задан GOOGLE_CREDENTIALS_B64")
 
     creds = Credentials.from_service_account_file(creds_path, scopes=SCOPES)
     return gspread.authorize(creds)

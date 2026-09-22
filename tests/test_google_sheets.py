@@ -243,3 +243,56 @@ def test_apply_number_format_formats_amount_columns(mock_format, mock_worksheet)
         fmt = call.args[2]
         assert fmt.numberFormat.type == "NUMBER"
         assert fmt.numberFormat.pattern == "#,##0.00"
+
+
+# ============================================================
+#   GOOGLE_CREDENTIALS_B64
+# ============================================================
+
+
+def test_get_client_uses_b64_if_set(monkeypatch):
+    """GOOGLE_CREDENTIALS_B64 имеет приоритет над файлом."""
+    import base64
+    import json
+    from unittest.mock import patch
+
+    fake_key = "-----BEGIN " + "PRIVATE KEY-----" + "\nMIIB\n" + "-----END PRIVATE KEY-----" + "\n"
+
+    fake_creds = {
+        "type": "service_account",
+        "project_id": "test",
+        "private_key_id": "abc",
+        "private_key": fake_key,
+        "client_email": "test@test.iam.gserviceaccount.com",
+        "client_id": "123",
+        "token_uri": "https://oauth2.googleapis.com/token",
+    }
+    b64 = base64.b64encode(json.dumps(fake_creds).encode()).decode()
+
+    monkeypatch.setenv("GOOGLE_CREDENTIALS_B64", b64)
+
+    with (
+        patch("app.integrations.google_sheets.Credentials") as mock_creds,
+        patch("app.integrations.google_sheets.gspread"),
+    ):
+        gs.get_client()
+
+        assert mock_creds.from_service_account_info.called
+        assert not mock_creds.from_service_account_file.called
+
+
+def test_get_client_raises_on_invalid_b64(monkeypatch):
+    """Битый base64 → ValueError с понятным сообщением."""
+    monkeypatch.setenv("GOOGLE_CREDENTIALS_B64", "not-valid-base64!!!")
+
+    with pytest.raises(ValueError, match="не декодируется"):
+        gs.get_client()
+
+
+def test_get_client_falls_back_to_file(monkeypatch, tmp_path):
+    """Без B64 — используется файл. Нет файла — FileNotFoundError."""
+    monkeypatch.delenv("GOOGLE_CREDENTIALS_B64", raising=False)
+    monkeypatch.setenv("GOOGLE_CREDENTIALS_PATH", str(tmp_path / "nope.json"))
+
+    with pytest.raises(FileNotFoundError):
+        gs.get_client()
