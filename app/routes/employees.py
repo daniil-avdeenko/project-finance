@@ -34,9 +34,15 @@ def parse_project_roles(project_roles_json: str) -> list[dict]:
     for item in data:
         if not isinstance(item, dict):
             continue
-        project_id = item.get("project_id")
+        raw_id = item.get("project_id")
+        if raw_id is None:
+            continue
+        try:
+            project_id = int(raw_id)
+        except (TypeError, ValueError):
+            continue
         role = (item.get("role") or "").strip()
-        if not isinstance(project_id, int) or not role:
+        if not role:
             continue
         result.append({"project_id": project_id, "role": role})
     return result
