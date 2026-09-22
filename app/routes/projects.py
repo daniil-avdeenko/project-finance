@@ -1,5 +1,7 @@
+import asyncio
 import calendar
 import csv
+import os
 from calendar import monthrange
 from collections import defaultdict
 from datetime import UTC, datetime
@@ -17,6 +19,7 @@ from app.routes.blueprint import main_bp
 from app.services.currency_service import get_rates_map
 from app.services.excel_export import build_projects_workbook, make_xlsx_response
 from app.services.project_stats import ProjectStatsService
+from app.services.sync_service import get_last_sync, log_sync
 
 
 @main_bp.route("/")
@@ -138,6 +141,18 @@ def index():
         period_label=period_label,
         usd_rate=usd_rate,
         eur_rate=eur_rate,
+        last_grist_sync=get_last_sync("grist"),
+        last_sheets_sync=get_last_sync("sheets"),
+        grist_url=(
+            f"https://docs.getgrist.com/doc/{os.getenv('GRIST_DOC_ID')}"
+            if os.getenv("GRIST_DOC_ID")
+            else None
+        ),
+        sheets_url=(
+            f"https://docs.google.com/spreadsheets/d/{os.getenv('GOOGLE_SPREADSHEET_ID')}"
+            if os.getenv("GOOGLE_SPREADSHEET_ID")
+            else None
+        ),
     )
 
 
@@ -369,3 +384,64 @@ def chart():
         )
 
     return render_template("chart.html", month_labels=month_labels, projects_data=projects_data)
+
+
+@main_bp.route("/sync-now", methods=["POST"])
+@login_required
+@admin_required
+def sync_now():
+    """
+    Ручной запуск синхронизации с Grist и Google Sheets.
+
+    Дублирует CLI-команды, но доступен из UI. Логируется в sync_log.
+    При ошибке в одном из сервисов — flash с текстом, второй сервис
+    всё равно запускается (частичный успех лучше полного отказа).
+    """
+    from sqlalchemy.orm import joinedload
+
+    from app.integrations.google_sheets import sync_all_to_sheets
+    from app.integrations.grist_httpx import (
+        sync_projects_to_grist_httpx,
+        sync_transactions_to_grist_httpx,
+    )
+
+    projects = Project.active().all()
+    transactions = (
+        Transaction.active()
+        .options(joinedload(Transaction.project))
+        .order_by(Transaction.date.desc())
+        .all()
+    )
+
+    errors = []
+
+    # Grist
+    try:
+        p_result = asyncio.run(sync_projects_to_grist_httpx(projects))
+        t_result = asyncio.run(sync_transactions_to_grist_httpx(transactions))
+        total = (
+            p_result.get("added", 0)
+            + t_result.get("added", 0)
+            + p_result.get("updated", 0)
+            + t_result.get("updated", 0)
+        )
+        log_sync("grist", "success", records_count=total)
+    except Exception as e:
+        log_sync("grist", "error", error=str(e)[:500])
+        errors.append(f"Grist: {e}")
+
+    # Sheets
+    try:
+        result = sync_all_to_sheets(projects, transactions)
+        total = result["projects"] + result["transactions"]
+        log_sync("sheets", "success", records_count=total)
+    except Exception as e:
+        log_sync("sheets", "error", error=str(e)[:500])
+        errors.append(f"Sheets: {e}")
+
+    if errors:
+        flash("Ошибка синхронизации: " + "; ".join(errors), "danger")
+    else:
+        flash("Синхронизация выполнена", "success")
+
+    return safe_redirect(url_for("main.index"))
