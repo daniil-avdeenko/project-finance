@@ -6,6 +6,8 @@ from io import BytesIO
 import pytest
 from openpyxl import load_workbook
 
+from app import db as _db
+from app.models import Project
 from app.services.excel_export import (
     build_employees_workbook,
     build_projects_workbook,
@@ -84,11 +86,6 @@ def fake_employee():
     return FakeEmployee()
 
 
-def _load_from_response(response):
-    """Восстанавливает Workbook из ответа."""
-    return load_workbook(BytesIO(response.get_data()), read_only=True)
-
-
 # ============================================================
 #   build_projects_workbook
 # ============================================================
@@ -126,7 +123,6 @@ def test_projects_workbook_empty_list(app):
 
 def test_transactions_workbook_uses_rates_map(app, fake_transaction):
     """Сумма в рублях считается через rates_map, без SQL."""
-    from app.models import CurrencyRate
 
     class FakeRate:
         code = "USD"
@@ -189,6 +185,7 @@ def test_make_xlsx_response_headers(app):
     )
     assert "attachment" in response.headers["Content-Disposition"]
     assert "test.xlsx" in response.headers["Content-Disposition"]
+    assert "no-store" in response.headers["Cache-Control"]
 
 
 def test_make_xlsx_response_body_is_valid_xlsx(app):
@@ -207,11 +204,8 @@ def test_make_xlsx_response_body_is_valid_xlsx(app):
 
 
 def test_export_projects_xlsx_route(auth_client, app):
-    from app.models import Project
-
     with app.app_context():
         _db_proj = Project(name="P1")
-        from app import db as _db
 
         _db.session.add(_db_proj)
         _db.session.commit()
@@ -231,3 +225,17 @@ def test_export_transactions_xlsx_route(auth_client):
 def test_export_employees_xlsx_route(auth_client):
     response = auth_client.get("/employees/export/xlsx")
     assert response.status_code == 200
+
+
+def test_export_responses_have_distinct_filenames(auth_client):
+    """Каждый экспорт отдаёт файл со своим именем и запрещает кеш."""
+    endpoints = [
+        ("/projects/export/xlsx", "projects_export.xlsx"),
+        ("/transactions/export/xlsx", "transactions_export.xlsx"),
+        ("/employees/export/xlsx", "employees_export.xlsx"),
+    ]
+    for url, expected_filename in endpoints:
+        response = auth_client.get(url)
+        cd = response.headers["Content-Disposition"]
+        assert expected_filename in cd, f"{url}: ожидали {expected_filename}, получили {cd}"
+        assert "no-store" in response.headers.get("Cache-Control", ""), url

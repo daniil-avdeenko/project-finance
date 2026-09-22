@@ -4,13 +4,11 @@ from flask import Response, redirect, request
 
 
 def make_csv_response(csv_content, filename):
-    """
-    Возвращает Response с CSV-файлом в кодировке UTF-8 с BOM.
-    """
-    # Добавляем BOM для корректного отображения в Excel
     content = "\ufeff" + csv_content
     response = Response(content, mimetype="text/csv")
     response.headers.set("Content-Disposition", "attachment", filename=filename)
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
     return response
 
 
