@@ -142,11 +142,11 @@ async def job_process_events(app) -> None:
 async def job_sync_grist(app) -> None:
     """Раз в 30 минут: upsert Project/Transaction в Grist."""
     with app.app_context():
-        # Локальный импорт — избегаем циклической зависимости при старте
         from app.integrations.grist_httpx import (
             sync_projects_to_grist_httpx,
             sync_transactions_to_grist_httpx,
         )
+        from app.services.sync_service import log_sync
 
         try:
             projects = Project.active().all()
@@ -159,6 +159,14 @@ async def job_sync_grist(app) -> None:
 
             p_result = await sync_projects_to_grist_httpx(projects)
             t_result = await sync_transactions_to_grist_httpx(transactions)
+
+            total = (
+                p_result.get("added", 0)
+                + t_result.get("added", 0)
+                + p_result.get("updated", 0)
+                + t_result.get("updated", 0)
+            )
+            log_sync("grist", "success", records_count=total)
 
             added = p_result.get("added", 0) + t_result.get("added", 0)
             deleted = p_result.get("deleted", 0) + t_result.get("deleted", 0)
@@ -187,6 +195,7 @@ async def job_sync_grist(app) -> None:
         except Exception as e:
             db.session.rollback()
             logger.exception("job_sync_grist failed")
+            log_sync("grist", "error", error=str(e)[:500])
             # Ошибку тоже кладём в очередь — отправится следующим циклом process_events
             db.session.add(
                 EventLog(
@@ -275,7 +284,7 @@ async def job_sync_sheets(app) -> None:
     """Раз в час: экспорт проектов и транзакций в Google Sheets."""
     with app.app_context():
         from app.integrations.google_sheets import sync_all_to_sheets
-        from app.models import Project, Transaction
+        from app.services.sync_service import log_sync
 
         try:
             projects = Project.active().all()
@@ -287,6 +296,8 @@ async def job_sync_sheets(app) -> None:
             )
             # gspread синхронный — уводим в отдельный поток
             result = await asyncio.to_thread(sync_all_to_sheets, projects, transactions)
+            total = result["projects"] + result["transactions"]
+            log_sync("sheets", "success", records_count=total)
             logger.info(
                 "job_sync_sheets: %d проектов, %d транзакций",
                 result["projects"],
@@ -299,6 +310,7 @@ async def job_sync_sheets(app) -> None:
         except Exception as e:
             logger.exception("job_sync_sheets failed")
             db.session.rollback()
+            log_sync("sheets", "error", error=str(e)[:500])
             db.session.add(
                 EventLog(
                     event_type="error",
