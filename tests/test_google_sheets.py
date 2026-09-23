@@ -91,11 +91,13 @@ def test_ensure_sheets_creates_missing():
     created.title = "Transactions"
     spreadsheet.worksheet.return_value = created
 
-    result = gs.ensure_sheets(spreadsheet, ["Projects", "Transactions"])
+    sheets, created_names = gs.ensure_sheets(spreadsheet, ["Projects", "Transactions"])
 
     # Projects уже был — add_worksheet не вызван для него
     spreadsheet.add_worksheet.assert_called_once_with(title="Transactions", rows=1000, cols=20)
-    assert set(result.keys()) == {"Projects", "Transactions"}
+    assert set(sheets.keys()) == {"Projects", "Transactions"}
+    # Вернулось множество созданных листов — только Transactions
+    assert created_names == {"Transactions"}
 
 
 def test_ensure_sheets_all_exist():
@@ -107,9 +109,10 @@ def test_ensure_sheets_all_exist():
     ws2.title = "Transactions"
     spreadsheet.worksheets.return_value = [ws1, ws2]
 
-    gs.ensure_sheets(spreadsheet, ["Projects", "Transactions"])
+    sheets, created_names = gs.ensure_sheets(spreadsheet, ["Projects", "Transactions"])
 
     spreadsheet.add_worksheet.assert_not_called()
+    assert created_names == set()  # ни одного нового листа
 
 
 # ============================================================
@@ -197,6 +200,16 @@ def test_sync_transactions_empty_date(_fmt, _val, mock_worksheet, fake_transacti
     assert row[6] == 8450.0
 
 
+@patch("app.integrations.google_sheets.set_data_validation_for_cell_range")
+@patch("app.integrations.google_sheets.format_cell_range")
+def test_sync_transactions_skips_validation_on_existing_sheet(
+    _fmt, mock_validation, mock_worksheet, fake_transaction
+):
+    """При is_new_sheet=False валидация не применяется — экономия запросов."""
+    gs.sync_transactions_to_sheets(mock_worksheet, [fake_transaction], is_new_sheet=False)
+    mock_validation.assert_not_called()
+
+
 # ============================================================
 #   sync_all_to_sheets
 # ============================================================
@@ -208,10 +221,11 @@ def test_sync_transactions_empty_date(_fmt, _val, mock_worksheet, fake_transacti
 @patch("app.integrations.google_sheets.get_spreadsheet")
 def test_sync_all_calls_both(mock_spreadsheet, mock_ensure, mock_projects, mock_transactions):
     """sync_all вызывает оба sync'а и возвращает счётчики."""
-    mock_ensure.return_value = {
-        "Projects": MagicMock(),
-        "Transactions": MagicMock(),
-    }
+    # ensure_sheets возвращает (dict, set) — второй элемент это созданные листы
+    mock_ensure.return_value = (
+        {"Projects": MagicMock(), "Transactions": MagicMock()},
+        set(),  # ничего не создано — оба листа уже были
+    )
     mock_projects.return_value = 6
     mock_transactions.return_value = 386
 
@@ -220,6 +234,28 @@ def test_sync_all_calls_both(mock_spreadsheet, mock_ensure, mock_projects, mock_
     assert result == {"projects": 6, "transactions": 386}
     mock_projects.assert_called_once()
     mock_transactions.assert_called_once()
+    # is_new_sheet=False, т.к. Transactions не в created
+    assert mock_transactions.call_args.kwargs.get("is_new_sheet") is False
+
+
+@patch("app.integrations.google_sheets.sync_transactions_to_sheets")
+@patch("app.integrations.google_sheets.sync_projects_to_sheets")
+@patch("app.integrations.google_sheets.ensure_sheets")
+@patch("app.integrations.google_sheets.get_spreadsheet")
+def test_sync_all_applies_formatting_on_new_sheet(
+    mock_spreadsheet, mock_ensure, mock_projects, mock_transactions
+):
+    """Если лист Transactions создан впервые — is_new_sheet=True."""
+    mock_ensure.return_value = (
+        {"Projects": MagicMock(), "Transactions": MagicMock()},
+        {"Transactions"},  # только что создан
+    )
+    mock_projects.return_value = 6
+    mock_transactions.return_value = 100
+
+    gs.sync_all_to_sheets(projects=[], transactions=[])
+
+    assert mock_transactions.call_args.kwargs.get("is_new_sheet") is True
 
 
 # ============================================================
