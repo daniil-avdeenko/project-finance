@@ -239,3 +239,43 @@ def test_dashboard_renders_msk_time(auth_client, app):
     text = response.get_data(as_text=True)
     assert "22.09 15:00" in text
     assert "22.09 12:00" not in text
+
+
+def test_short_error_http_status():
+    import httpx
+
+    from app.services.sync_service import short_error
+
+    request = httpx.Request("GET", "https://example.com")
+    response = httpx.Response(401, request=request)
+    err = httpx.HTTPStatusError("401", request=request, response=response)
+    assert short_error(err) == "HTTP 401 — неверный API-ключ"
+
+
+def test_short_error_500():
+    import httpx
+
+    from app.services.sync_service import short_error
+
+    request = httpx.Request("GET", "https://example.com")
+    response = httpx.Response(503, request=request)
+    err = httpx.HTTPStatusError("503", request=request, response=response)
+    assert short_error(err) == "HTTP 503 — сервис недоступен"
+
+
+def test_short_error_request_error():
+    import httpx
+
+    from app.services.sync_service import short_error
+
+    err = httpx.ConnectError("Connection refused")
+    assert "сеть недоступна" in short_error(err)
+
+
+def test_short_error_truncates_long_message():
+    from app.services.sync_service import short_error
+
+    err = RuntimeError("a" * 500)
+    result = short_error(err)
+    assert len(result) <= 121  # 120 + многоточие
+    assert result.endswith("…")

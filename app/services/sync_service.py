@@ -55,3 +55,36 @@ def format_sync_time(dt: datetime | None, fmt: str = "%d.%m %H:%M") -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
     return dt.astimezone(DISPLAY_TZ).strftime(fmt)
+
+
+def short_error(e: Exception) -> str:
+    """
+    Короткое описание ошибки для показа в UI.
+
+    Полный текст пишется в лог и SyncLog.error_message.
+    Пользователю показываем причину и подсказку.
+    """
+    import httpx
+
+    if isinstance(e, httpx.HTTPStatusError):
+        code = e.response.status_code
+        human = {
+            401: "неверный API-ключ",
+            403: "доступ запрещён",
+            404: "не найдено (проверьте ID)",
+            429: "превышен лимит запросов",
+        }.get(code)
+        if 500 <= code < 600:
+            human = "сервис недоступен"
+        return f"HTTP {code}{f' — {human}' if human else ''}"
+
+    if isinstance(e, httpx.TimeoutException):
+        return "таймаут соединения"
+
+    if isinstance(e, httpx.RequestError):
+        return f"сеть недоступна ({type(e).__name__})"
+
+    msg = str(e)
+    if len(msg) > 120:
+        msg = msg[:120].rsplit(" ", 1)[0] + "…"
+    return msg or type(e).__name__
