@@ -44,9 +44,9 @@ Thumbs.db
 # Не нужное в образе
 tests
 .github
+docs
 README.md
 migrations/*.pyc
-
 # Docker
 Dockerfile*
 docker-compose*
