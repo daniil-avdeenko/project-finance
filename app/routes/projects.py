@@ -19,7 +19,7 @@ from app.routes.blueprint import main_bp
 from app.services.currency_service import get_rates_map
 from app.services.excel_export import build_projects_workbook, make_xlsx_response
 from app.services.project_stats import ProjectStatsService
-from app.services.sync_service import get_last_sync, log_sync
+from app.services.sync_service import get_last_sync, log_sync, short_error
 
 
 @main_bp.route("/")
@@ -419,7 +419,7 @@ def sync_grist_now():
         flash("Grist синхронизирован", "sync_success")
     except Exception as e:
         log_sync("grist", "error", error=str(e)[:500])
-        flash(f"Ошибка синхронизации Grist: {e}", "sync_error")
+        flash(f"Ошибка синхронизации Grist: {short_error(e)}", "sync_error")
 
     return safe_redirect(url_for("main.index"))
 
@@ -448,6 +448,6 @@ def sync_sheets_now():
         flash("Google Sheets синхронизирован", "sync_success")
     except Exception as e:
         log_sync("sheets", "error", error=str(e)[:500])
-        flash(f"Ошибка синхронизации Sheets: {e}", "sync_error")
+        flash(f"Ошибка синхронизации Sheets: {short_error(e)}", "sync_error")
 
     return safe_redirect(url_for("main.index"))
