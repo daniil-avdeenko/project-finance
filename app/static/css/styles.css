@@ -200,6 +200,9 @@ body {
 .custom-toast-info {
     border-left-color: #0d6efd;
 }
+.custom-toast-success {
+    border-left-color: #198754;
+}
 
 /* Кнопки интеграций на дашборде — одинаковая ширина */
 .dashboard-btn {

@@ -416,10 +416,10 @@ def sync_grist_now():
             + t_result.get("updated", 0)
         )
         log_sync("grist", "success", records_count=total)
-        flash("Grist синхронизирован", "success")
+        flash("Grist синхронизирован", "sync_success")
     except Exception as e:
         log_sync("grist", "error", error=str(e)[:500])
-        flash(f"Ошибка синхронизации Grist: {e}", "danger")
+        flash(f"Ошибка синхронизации Grist: {e}", "sync_error")
 
     return safe_redirect(url_for("main.index"))
 
@@ -445,9 +445,9 @@ def sync_sheets_now():
         result = sync_all_to_sheets(projects, transactions)
         total = result["projects"] + result["transactions"]
         log_sync("sheets", "success", records_count=total)
-        flash("Google Sheets синхронизирован", "success")
+        flash("Google Sheets синхронизирован", "sync_success")
     except Exception as e:
         log_sync("sheets", "error", error=str(e)[:500])
-        flash(f"Ошибка синхронизации Sheets: {e}", "danger")
+        flash(f"Ошибка синхронизации Sheets: {e}", "sync_error")
 
     return safe_redirect(url_for("main.index"))
