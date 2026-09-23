@@ -4,12 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Финансы проектов{% endblock %}</title>
-    <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <!-- Кастомные стили -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=5">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=7">
 </head>
 <body>
 <!-- Навбар -->
@@ -80,16 +77,12 @@
 
 <!-- Основной контейнер -->
 <div class="container mt-4">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-    {% for category, message in messages %}
+    {% for category, message in all_flash_messages %}
     <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
         <i class="fas fa-circle-info me-2"></i>{{ message }}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
     {% endfor %}
-    {% endif %}
-    {% endwith %}
 
     {% block content %}{% endblock %}
 </div>
@@ -125,24 +118,75 @@
     </div>
 </div>
 
+<!-- Контейнер для toast-уведомлений синхронизации -->
+<div class="toast-container" id="syncToastContainer"></div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
 <script>
+    // Список sync-событий из flash (заполняется context_processor'ом).
+    // Jinja рендерит их как JSON-массив — JS читает как обычный объект.
+    const syncFlashes = {{ sync_flashes | tojson }};
+
     document.addEventListener('DOMContentLoaded', function () {
+        // ===== Модальное окно удаления =====
         const modalEl = document.getElementById('deleteConfirmModal');
-        if (!modalEl) return;
+        if (modalEl) {
+            const modal = new bootstrap.Modal(modalEl);
+            const form = document.getElementById('deleteConfirmForm');
+            const nameEl = document.getElementById('deleteObjectName');
 
-        const modal = new bootstrap.Modal(modalEl);
-        const form = document.getElementById('deleteConfirmForm');
-        const nameEl = document.getElementById('deleteObjectName');
-
-        document.querySelectorAll('[data-delete-url]').forEach(btn => {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                e.preventDefault();
-                form.action = this.dataset.deleteUrl;
-                nameEl.textContent = this.dataset.deleteName || 'этот объект';
-                modal.show();
+            document.querySelectorAll('[data-delete-url]').forEach(btn => {
+                btn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    form.action = this.dataset.deleteUrl;
+                    nameEl.textContent = this.dataset.deleteName || 'этот объект';
+                    modal.show();
+                });
             });
+        }
+
+        // ===== SYNC TOASTS =====
+        let currentSyncToast = null;
+        let syncToastTimer = null;
+
+        function showSyncToast(message, type) {
+            const container = document.getElementById('syncToastContainer');
+            if (!container) return;
+
+            const icon = type === 'success'
+                ? 'fa-circle-check'
+                : (type === 'error' ? 'fa-circle-xmark' : 'fa-circle-info');
+            const html = `<i class="fas ${icon} me-2"></i>${message}`;
+
+            if (currentSyncToast) {
+                currentSyncToast.className = 'custom-toast custom-toast-' + type + ' show';
+                currentSyncToast.innerHTML = html;
+                clearTimeout(syncToastTimer);
+            } else {
+                currentSyncToast = document.createElement('div');
+                currentSyncToast.className = 'custom-toast custom-toast-' + type;
+                currentSyncToast.innerHTML = html;
+                container.appendChild(currentSyncToast);
+                requestAnimationFrame(() => currentSyncToast.classList.add('show'));
+            }
+
+            syncToastTimer = setTimeout(() => {
+                if (currentSyncToast) {
+                    currentSyncToast.classList.remove('show');
+                    setTimeout(() => {
+                        if (currentSyncToast) {
+                            currentSyncToast.remove();
+                            currentSyncToast = null;
+                        }
+                    }, 300);
+                }
+            }, 4000);
+        }
+
+        syncFlashes.forEach((flash, idx) => {
+            setTimeout(() => showSyncToast(flash.message, flash.type), idx * 100);
         });
     });
 </script>
