@@ -24,7 +24,10 @@ ignore_errors = true
 asyncio_mode = "auto"
 pythonpath = ["."]
 testpaths = ["tests"]
-filterwarnings = ["ignore::DeprecationWarning"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::ResourceWarning",
+]
 addopts = [
     "--cov=app",
     "--cov=scheduler",
