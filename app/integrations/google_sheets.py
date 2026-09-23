@@ -92,15 +92,24 @@ def get_spreadsheet() -> gspread.Spreadsheet:
 
 def ensure_sheets(
     spreadsheet: gspread.Spreadsheet, names: list[str]
-) -> dict[str, gspread.Worksheet]:
-    """Создаёт листы, если их нет. Возвращает {name: worksheet}."""
+) -> tuple[dict[str, gspread.Worksheet], set[str]]:
+    """
+    Создаёт листы, если их нет.
+
+    Возвращает (worksheets, created_names) — created_names нужен,
+    чтобы применить валидацию и форматирование только один раз,
+    при создании. Повторное применение на каждой синхронизации —
+    8 лишних HTTP-запросов.
+    """
     existing = {ws.title for ws in spreadsheet.worksheets()}
+    created: set[str] = set()
     for name in names:
         if name not in existing:
             spreadsheet.add_worksheet(title=name, rows=1000, cols=20)
+            created.add(name)
             logger.info("Создан лист: %s", name)
 
-    return {name: spreadsheet.worksheet(name) for name in names}
+    return {name: spreadsheet.worksheet(name) for name in names}, created
 
 
 def apply_headers(worksheet: gspread.Worksheet, headers: list[str]) -> None:
@@ -161,8 +170,18 @@ def sync_projects_to_sheets(worksheet: gspread.Worksheet, projects: list) -> int
     return len(rows)
 
 
-def sync_transactions_to_sheets(worksheet: gspread.Worksheet, transactions: list) -> int:
-    """Экспортирует транзакции. Возвращает количество строк."""
+def sync_transactions_to_sheets(
+    worksheet: gspread.Worksheet,
+    transactions: list,
+    *,
+    is_new_sheet: bool = True,
+) -> int:
+    """
+    Экспортирует транзакции. Возвращает количество строк.
+
+    is_new_sheet=True — применяет валидацию и формат (при создании листа).
+    is_new_sheet=False — только данные (при обычной синхронизации).
+    """
     rows = [
         [
             t.id,
@@ -177,23 +196,25 @@ def sync_transactions_to_sheets(worksheet: gspread.Worksheet, transactions: list
         for t in transactions
     ]
     _fill_worksheet(worksheet, TRANSACTIONS_HEADERS, rows)
-    apply_validation(worksheet)
-    apply_number_format(worksheet)
+    if is_new_sheet:
+        apply_validation(worksheet)
+        apply_number_format(worksheet)
     return len(rows)
 
 
 def sync_all_to_sheets(projects: list, transactions: list) -> dict[str, int]:
     """
     Полная синхронизация: проекты + транзакции.
-
-    Возвращает {'projects': N, 'transactions': M}.
-    Синхронная — из scheduler вызывается через asyncio.to_thread.
     """
     spreadsheet = get_spreadsheet()
-    sheets = ensure_sheets(spreadsheet, ["Projects", "Transactions"])
+    sheets, created = ensure_sheets(spreadsheet, ["Projects", "Transactions"])
 
     n_projects = sync_projects_to_sheets(sheets["Projects"], projects)
-    n_transactions = sync_transactions_to_sheets(sheets["Transactions"], transactions)
+    n_transactions = sync_transactions_to_sheets(
+        sheets["Transactions"],
+        transactions,
+        is_new_sheet="Transactions" in created,
+    )
 
     logger.info(
         "Google Sheets: экспортировано %d проектов, %d транзакций",
