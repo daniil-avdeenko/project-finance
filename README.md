@@ -1,4 +1,7 @@
 # 💰 Финансы проектов
+[![CI](https://github.com/daniil-avdeenko/project-finance/actions/workflows/ci.yml/badge.svg)](https://github.com/daniil-avdeenko/project-finance/actions/workflows/ci.yml)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
 Flask-приложение для учёта доходов и расходов по проектам: CRUD,
 аналитика рентабельности, экспорт в CSV/Excel, синхронизация с Grist
@@ -106,14 +109,18 @@ docker compose up -d
 Поднимутся два контейнера: `pf-web` (порт 5000) и `pf-scheduler` (healthcheck на 8080).
 Оба используют один образ, но разные команды запуска.
 
-### Тесты
+## Качество кода и CI/CD
 
-```bash
-pytest
-```
-
-**235 тестов, coverage 87%.** Ключевые модули: `telegram.py` — 100%, `excel_export.py` — 100%,
-`grist_httpx.py` — 94%, `sync_service.py` — 97%.
+- **Pre-commit:** ruff (линтер + форматтер), mypy, gitleaks, conventional-commit —
+  запускаются локально на каждом коммите.
+- **GitHub Actions** (`.github/workflows/ci.yml`): на каждый push в `main` и PR
+  два параллельных job'а — `pytest` (235 тестов, coverage 87%) и `ruff check` +
+  `ruff format --check`. Версия ruff закреплена для совпадения с pre-commit.
+- **Branch protection:** PR обязателен, статус-чеки CI должны быть зелёными,
+  force-push и удаление `main` запрещены.
+- **Conventional Commits** и feature-ветки — читаемая история, rebase and merge.
+- **CD — Railway:** после мержа в `main` пересобирается Docker-образ и
+  перезапускаются оба сервиса (`web` и `scheduler`) с zero-downtime.
 
 ## Деплой на Railway
 
@@ -185,7 +192,7 @@ scheduler/
 └── runner.py                  # точка входа APScheduler + healthcheck на :8080
 
 migrations/versions/            # Alembic
-tests/                          # 235 тестов
+tests/                          # pytest-тесты
 scripts/freeze.py, check_sheets.py
 Dockerfile, docker-compose.yml, railway.toml
 ```
