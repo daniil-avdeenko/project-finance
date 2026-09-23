@@ -24,6 +24,32 @@ class GristClient:
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
+        self._client: httpx.AsyncClient | None = None
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        """
+        Ленивая инициализация AsyncClient.
+
+        Один клиент на весь sync — переиспользует TLS-соединение.
+        Раньше новый клиент создавался на каждый _request: 10+ TCP
+        handshake за синхронизацию, отсюда ~12 сек вместо ~5.
+        """
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=30.0)
+        return self._client
+
+    async def close(self) -> None:
+        """Закрывает клиент. Вызывается через `async with`."""
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+        return False
 
     async def _request(self, method: str, endpoint: str, **kwargs):
         """
@@ -32,63 +58,61 @@ class GristClient:
         - 4xx/5xx — поднимаем HTTPStatusError без retry
         - httpx.RequestError (ReadError, ConnectError, Timeout) — retry с backoff
 
-        AsyncClient создаётся один раз на весь метод — retry переиспользует
-        пул соединений.
+        Клиент один на весь жизненный цикл GristClient — retry
+        переиспользует пул соединений между попытками.
         """
         url = f"{self.base_url}/{endpoint}"
         last_exc: httpx.RequestError | None = None
+        client = await self._get_client()
 
-        async with httpx.AsyncClient() as client:
-            for attempt in range(1, self.MAX_RETRIES + 1):
-                try:
-                    response = await client.request(
-                        method=method,
-                        url=url,
-                        headers=self.headers,
-                        timeout=30.0,
-                        **kwargs,
-                    )
-                    response.raise_for_status()
-                    if response.status_code == 204 or not response.content:
-                        return {}
-                    return response.json()
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            try:
+                response = await client.request(
+                    method=method,
+                    url=url,
+                    headers=self.headers,
+                    **kwargs,
+                )
+                response.raise_for_status()
+                if response.status_code == 204 or not response.content:
+                    return {}
+                return response.json()
 
-                except httpx.HTTPStatusError as e:
-                    logger.error(
-                        "HTTP %d при %s %s: %s",
-                        e.response.status_code,
+            except httpx.HTTPStatusError as e:
+                logger.error(
+                    "HTTP %d при %s %s: %s",
+                    e.response.status_code,
+                    method,
+                    url,
+                    e.response.text[:500],
+                )
+                raise
+
+            except httpx.RequestError as e:
+                last_exc = e
+                if attempt < self.MAX_RETRIES:
+                    delay = self.BACKOFF_BASE * (2 ** (attempt - 1))
+                    logger.warning(
+                        "Сетевая ошибка при %s %s (попытка %d/%d): %s — %r. " "Повтор через %.1fс",
                         method,
                         url,
-                        e.response.text[:500],
+                        attempt,
+                        self.MAX_RETRIES,
+                        type(e).__name__,
+                        e,
+                        delay,
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(
+                        "Сетевая ошибка при %s %s после %d попыток: %s — %r",
+                        method,
+                        url,
+                        self.MAX_RETRIES,
+                        type(e).__name__,
+                        e,
                     )
                     raise
-
-                except httpx.RequestError as e:
-                    last_exc = e
-                    if attempt < self.MAX_RETRIES:
-                        delay = self.BACKOFF_BASE * (2 ** (attempt - 1))
-                        logger.warning(
-                            "Сетевая ошибка при %s %s (попытка %d/%d): %s — %r. "
-                            "Повтор через %.1fс",
-                            method,
-                            url,
-                            attempt,
-                            self.MAX_RETRIES,
-                            type(e).__name__,
-                            e,
-                            delay,
-                        )
-                        await asyncio.sleep(delay)
-                    else:
-                        logger.error(
-                            "Сетевая ошибка при %s %s после %d попыток: %s — %r",
-                            method,
-                            url,
-                            self.MAX_RETRIES,
-                            type(e).__name__,
-                            e,
-                        )
-                        raise
 
         if last_exc is not None:
             raise last_exc
@@ -98,8 +122,7 @@ class GristClient:
         """
         Upsert записей чанками по CHUNK_SIZE.
 
-        Режем на чанки по 100 и агрегируем
-        статистику.
+        Режем на чанки по 100 и агрегируем статистику.
         При ошибке в любом чанке — raise наверх, остальные не отправляем.
         """
         if not records:
@@ -191,8 +214,6 @@ async def sync_projects_to_grist_httpx(projects: list, prune: bool = True) -> di
     if not api_key or not doc_id:
         raise ValueError("GRIST_API_KEY и GRIST_DOC_ID должны быть установлены.")
 
-    client = GristClient(api_key=api_key, doc_id=doc_id, server=server)
-
     records = [
         {
             "require": {"ID2": p.id},
@@ -210,14 +231,15 @@ async def sync_projects_to_grist_httpx(projects: list, prune: bool = True) -> di
 
     result = {"added": 0, "updated": 0, "deleted": 0}
 
-    if records:
-        upsert_result = await client.upsert_records("Projects", records)
-        result["added"] = upsert_result["added"]
-        result["updated"] = upsert_result["updated"]
+    async with GristClient(api_key=api_key, doc_id=doc_id, server=server) as client:
+        if records:
+            upsert_result = await client.upsert_records("Projects", records)
+            result["added"] = upsert_result["added"]
+            result["updated"] = upsert_result["updated"]
 
-    if prune:
-        keep_ids = {p.id for p in projects}
-        result["deleted"] = await client.prune_missing_records("Projects", keep_ids)
+        if prune:
+            keep_ids = {p.id for p in projects}
+            result["deleted"] = await client.prune_missing_records("Projects", keep_ids)
 
     logger.info(
         "Проекты: добавлено %d, обновлено %d, удалено %d",
@@ -241,8 +263,6 @@ async def sync_transactions_to_grist_httpx(transactions: list, prune: bool = Tru
     if not api_key or not doc_id:
         raise ValueError("GRIST_API_KEY и GRIST_DOC_ID должны быть установлены.")
 
-    client = GristClient(api_key=api_key, doc_id=doc_id, server=server)
-
     records = [
         {
             "require": {"ID2": t.id},
@@ -262,14 +282,15 @@ async def sync_transactions_to_grist_httpx(transactions: list, prune: bool = Tru
 
     result = {"added": 0, "updated": 0, "deleted": 0}
 
-    if records:
-        upsert_result = await client.upsert_records("Transactions", records)
-        result["added"] = upsert_result["added"]
-        result["updated"] = upsert_result["updated"]
+    async with GristClient(api_key=api_key, doc_id=doc_id, server=server) as client:
+        if records:
+            upsert_result = await client.upsert_records("Transactions", records)
+            result["added"] = upsert_result["added"]
+            result["updated"] = upsert_result["updated"]
 
-    if prune:
-        keep_ids = {t.id for t in transactions}
-        result["deleted"] = await client.prune_missing_records("Transactions", keep_ids)
+        if prune:
+            keep_ids = {t.id for t in transactions}
+            result["deleted"] = await client.prune_missing_records("Transactions", keep_ids)
 
     logger.info(
         "Транзакции: добавлено %d, обновлено %d, удалено %d",
@@ -294,8 +315,6 @@ async def sync_rates_to_grist_httpx(rates: list) -> dict:
     if not api_key or not doc_id:
         raise ValueError("GRIST_API_KEY и GRIST_DOC_ID должны быть установлены.")
 
-    client = GristClient(api_key=api_key, doc_id=doc_id, server=server)
-
     records = [
         {
             "require": {"ID2": r.code},
@@ -313,6 +332,8 @@ async def sync_rates_to_grist_httpx(rates: list) -> dict:
         logger.info("Нет курсов для синхронизации.")
         return {"added": 0, "updated": 0}
 
-    result = await client.upsert_records("ExchangeRates", records)
+    async with GristClient(api_key=api_key, doc_id=doc_id, server=server) as client:
+        result = await client.upsert_records("ExchangeRates", records)
+
     logger.info("Курсы: добавлено %d, обновлено %d", result["added"], result["updated"])
     return result
