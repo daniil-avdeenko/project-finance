@@ -73,7 +73,7 @@ def test_sync_grist_success(auth_client, app):
         ),
     ):
         response = auth_client.post("/sync/grist", follow_redirects=True)
-
+    assert "Grist синхронизирован" in response.get_data(as_text=True)
     assert response.status_code == 200
 
     with app.app_context():
@@ -98,6 +98,7 @@ def test_sync_grist_error(auth_client, app):
         response = auth_client.post("/sync/grist", follow_redirects=True)
 
     assert response.status_code == 200
+    assert "Ошибка синхронизации Grist" in response.get_data(as_text=True)
 
     with app.app_context():
         assert get_last_sync("grist").status == "error"
@@ -135,6 +136,7 @@ def test_sync_sheets_success(auth_client, app):
         assert log is not None
         assert log.status == "success"
         assert log.records_count == 106  # 6 + 100
+        assert "Google Sheets синхронизирован" in response.get_data(as_text=True)
 
 
 def test_sync_sheets_error(auth_client, app):
@@ -150,6 +152,7 @@ def test_sync_sheets_error(auth_client, app):
         assert get_last_sync("sheets").status == "error"
         # Grist-лог не должен появиться
         assert get_last_sync("grist") is None
+        assert "Ошибка синхронизации Sheets" in response.get_data(as_text=True)
 
 
 # ============================================================
