@@ -19,13 +19,13 @@ def upgrade():
     # batch_alter_table не нужен и ломается на FK от transactions → projects.
     op.add_column(
         "projects",
-        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("0"), nullable=False),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
     )
     op.create_index("ix_projects_is_deleted", "projects", ["is_deleted"])
 
     op.add_column(
         "transactions",
-        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("0"), nullable=False),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
     )
     op.create_index("ix_transactions_is_deleted", "transactions", ["is_deleted"])
 

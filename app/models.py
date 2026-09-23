@@ -59,7 +59,7 @@ class Project(db.Model):
     is_deleted = db.Column(
         db.Boolean,
         default=False,
-        server_default=db.text("0"),
+        server_default=db.text("false"),
         nullable=False,
         index=True,
     )
@@ -192,7 +192,7 @@ class Transaction(db.Model):
     is_deleted = db.Column(
         db.Boolean,
         default=False,
-        server_default=db.text("0"),
+        server_default=db.text("false"),
         nullable=False,
         index=True,
     )

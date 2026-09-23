@@ -21,11 +21,11 @@ def upgrade():
         sa.text(
             """
             UPDATE transactions
-            SET is_deleted = 1
+            SET is_deleted = true
             WHERE project_id IN (
-                SELECT id FROM projects WHERE is_deleted = 1
+                SELECT id FROM projects WHERE is_deleted = true
             )
-            AND is_deleted = 0
+            AND is_deleted = false
             """
         )
     )
