@@ -63,6 +63,9 @@ def create_app():
     app.config["SESSION_COOKIE_SECURE"] = flask_env == "production"
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    # Не escape'ить кириллицу в {{ x | tojson }} — иначе на клиенте
+    # нормально, а в HTML и тестах текст закодирован в \uXXXX.
+    app.json.ensure_ascii = False
 
     database_url = os.getenv("DATABASE_URL")
 
@@ -132,6 +135,28 @@ def create_app():
         from app.services.sync_service import format_sync_time
 
         return format_sync_time(value, fmt)
+
+    @app.context_processor
+    def inject_flash_messages():
+        """
+        Читает flash один раз за запрос и отдаёт шаблонам два списка:
+        - regular: обычные сообщения (success, danger, warning, info)
+        - sync:    события синхронизации (sync_success, sync_error),
+                   которые рендерятся как toast справа сверху
+
+        Без context_processor get_flashed_messages в шаблоне можно
+        вызвать только один раз — второй вызов вернёт пусто.
+        """
+        from flask import get_flashed_messages
+
+        all_msgs = get_flashed_messages(with_categories=True)
+        regular = [(c, m) for c, m in all_msgs if not c.startswith("sync_")]
+        sync = [
+            {"type": c.replace("sync_", ""), "message": m}
+            for c, m in all_msgs
+            if c.startswith("sync_")
+        ]
+        return {"all_flash_messages": regular, "sync_flashes": sync}
 
     # Обработчики ошибок
     @app.errorhandler(404)
