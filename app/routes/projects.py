@@ -386,20 +386,13 @@ def chart():
     return render_template("chart.html", month_labels=month_labels, projects_data=projects_data)
 
 
-@main_bp.route("/sync-now", methods=["POST"])
+@main_bp.route("/sync/grist", methods=["POST"])
 @login_required
 @admin_required
-def sync_now():
-    """
-    Ручной запуск синхронизации с Grist и Google Sheets.
-
-    Дублирует CLI-команды, но доступен из UI. Логируется в sync_log.
-    При ошибке в одном из сервисов — flash с текстом, второй сервис
-    всё равно запускается (частичный успех лучше полного отказа).
-    """
+def sync_grist_now():
+    """Ручная синхронизация с Grist."""
     from sqlalchemy.orm import joinedload
 
-    from app.integrations.google_sheets import sync_all_to_sheets
     from app.integrations.grist_httpx import (
         sync_projects_to_grist_httpx,
         sync_transactions_to_grist_httpx,
@@ -413,9 +406,6 @@ def sync_now():
         .all()
     )
 
-    errors = []
-
-    # Grist
     try:
         p_result = asyncio.run(sync_projects_to_grist_httpx(projects))
         t_result = asyncio.run(sync_transactions_to_grist_httpx(transactions))
@@ -426,22 +416,38 @@ def sync_now():
             + t_result.get("updated", 0)
         )
         log_sync("grist", "success", records_count=total)
+        flash("Grist синхронизирован", "success")
     except Exception as e:
         log_sync("grist", "error", error=str(e)[:500])
-        errors.append(f"Grist: {e}")
+        flash(f"Ошибка синхронизации Grist: {e}", "danger")
 
-    # Sheets
+    return safe_redirect(url_for("main.index"))
+
+
+@main_bp.route("/sync/sheets", methods=["POST"])
+@login_required
+@admin_required
+def sync_sheets_now():
+    """Ручная синхронизация с Google Sheets."""
+    from sqlalchemy.orm import joinedload
+
+    from app.integrations.google_sheets import sync_all_to_sheets
+
+    projects = Project.active().all()
+    transactions = (
+        Transaction.active()
+        .options(joinedload(Transaction.project))
+        .order_by(Transaction.date.desc())
+        .all()
+    )
+
     try:
         result = sync_all_to_sheets(projects, transactions)
         total = result["projects"] + result["transactions"]
         log_sync("sheets", "success", records_count=total)
+        flash("Google Sheets синхронизирован", "success")
     except Exception as e:
         log_sync("sheets", "error", error=str(e)[:500])
-        errors.append(f"Sheets: {e}")
-
-    if errors:
-        flash("Ошибка синхронизации: " + "; ".join(errors), "danger")
-    else:
-        flash("Синхронизация выполнена", "success")
+        flash(f"Ошибка синхронизации Sheets: {e}", "danger")
 
     return safe_redirect(url_for("main.index"))

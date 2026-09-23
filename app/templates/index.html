@@ -46,24 +46,25 @@
             </div>
         </form>
 
-        {% if current_user.is_admin() %}
-        <form method="post" action="{{ url_for('main.sync_now') }}" class="d-inline">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-outline-success btn-sm"
-                    title="Синхронизировать с Grist и Google Sheets">
-                <i class="fas fa-sync-alt"></i>
-            </button>
-        </form>
-        {% endif %}
-
-        <!-- Grist + время снизу -->
-        <div class="position-relative">
+        <!-- Grist: ссылка + кнопка синхронизации, время снизу -->
+        <div class="position-relative d-inline-flex align-items-stretch">
             {% if grist_url %}
             <a href="{{ grist_url }}" target="_blank" rel="noopener"
-               class="btn btn-outline-secondary btn-sm" title="Открыть документ Grist"
-               style="min-width: 92px;">
+               class="btn btn-outline-secondary btn-sm"
+               style="min-width: 92px; border-top-right-radius: 0; border-bottom-right-radius: 0;"
+               title="Открыть документ Grist">
                 <i class="fas fa-table me-1"></i>Grist
             </a>
+            {% endif %}
+            {% if current_user.is_admin() %}
+            <form method="post" action="{{ url_for('main.sync_grist_now') }}" class="d-inline-flex">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-outline-success btn-sm"
+                        style="border-top-left-radius: 0; border-bottom-left-radius: 0;"
+                        title="Синхронизировать Grist">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </form>
             {% endif %}
             {% if last_grist_sync %}
             <div class="text-muted position-absolute"
@@ -76,21 +77,32 @@
             {% endif %}
         </div>
 
-        <!-- Sheets + время снизу -->
-        <div class="position-relative">
+        <!-- Sheets: ссылка + кнопка синхронизации, время снизу -->
+        <div class="position-relative d-inline-flex align-items-stretch">
             {% if sheets_url %}
             <a href="{{ sheets_url }}" target="_blank" rel="noopener"
-               class="btn btn-outline-secondary btn-sm" title="Открыть Google Sheets"
-               style="min-width: 92px;">
+               class="btn btn-outline-secondary btn-sm"
+               style="min-width: 92px; border-top-right-radius: 0; border-bottom-right-radius: 0;"
+               title="Открыть Google Sheets">
                 <i class="fas fa-file-excel me-1"></i>Sheets
             </a>
+            {% endif %}
+            {% if current_user.is_admin() %}
+            <form method="post" action="{{ url_for('main.sync_sheets_now') }}" class="d-inline-flex">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-outline-success btn-sm"
+                        style="border-top-left-radius: 0; border-bottom-left-radius: 0;"
+                        title="Синхронизировать Google Sheets">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </form>
             {% endif %}
             {% if last_sheets_sync %}
             <div class="text-muted position-absolute"
                  style="top: 100%; left: 50%; transform: translateX(-50%);
                         font-size: 0.68rem; white-space: nowrap; padding-top: 3px;"
                  title="Синхронизовано с Google Sheets: {{ last_sheets_sync.synced_at | localtime('%d.%m.%Y %H:%M МСК') }}">
-                {{ last_sheets_sync.synced_at.strftime('%d.%m %H:%M') }}
+                {{ last_sheets_sync.synced_at | localtime }}
                 {% if last_sheets_sync.status == 'error' %}<span class="text-danger">⚠</span>{% endif %}
             </div>
             {% endif %}
