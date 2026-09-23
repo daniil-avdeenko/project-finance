@@ -21,6 +21,10 @@ RUN useradd --create-home --shell /bin/bash appuser
 
 WORKDIR /app
 
+# Даём appuser права на /app — иначе setup_logging упадёт
+# на создании logs/ (в docker-compose скрыто volume'ом, на Railway нет)
+RUN chown appuser:appuser /app
+
 # Requirements
 COPY requirements.txt .
 RUN pip install --upgrade pip \
