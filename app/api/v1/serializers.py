@@ -59,3 +59,53 @@ def parse_date_param(value: str | None, field_name: str) -> datetime | None:
     from datetime import UTC
 
     return dt.replace(tzinfo=UTC)
+
+
+def transaction_to_dict(transaction, category_name: str) -> dict:
+    """
+    Транзакция в JSON.
+    """
+    return {
+        "id": transaction.id,
+        "date": transaction.date.isoformat() if transaction.date else None,
+        "project_id": transaction.project_id,
+        "project_name": transaction.project.name if transaction.project else None,
+        "type": transaction.type,
+        "category_id": transaction.category_id,
+        "category_name": category_name,
+        "amount": round(transaction.amount, 2),
+        "currency": transaction.currency or "RUB",
+        "amount_rub": transaction.amount_rub,
+        "description": transaction.description or "",
+    }
+
+
+def project_detail_to_dict(project, stats, transactions: list, categories: dict) -> dict:
+    """
+    Детальная карточка проекта: финансы + список транзакций + сотрудники.
+
+    transactions — список активных транзакций проекта.
+    categories — {category_id: name} для сериализации транзакций.
+    """
+    return {
+        "id": project.id,
+        "name": project.name,
+        "description": project.description or "",
+        "created_at": project.created_at.isoformat() if project.created_at else None,
+        "income": stats.total_income,
+        "expense": stats.total_expense,
+        "profit": stats.profit,
+        "profitability": stats.profitability,
+        "employees": [
+            {
+                "id": er.employee.id,
+                "name": er.employee.name,
+                "role": er.role,
+            }
+            for er in project.employee_roles
+        ],
+        "transactions": [
+            transaction_to_dict(t, categories.get(t.category_id, "")) for t in transactions
+        ],
+        "transactions_count": len(transactions),
+    }

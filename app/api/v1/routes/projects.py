@@ -9,14 +9,23 @@
 from collections import defaultdict
 
 from flask import jsonify, request
+from sqlalchemy.orm import joinedload
 
 from app.api.v1 import api_v1_bp
 from app.api.v1.serializers import (
     parse_date_param,
+    project_detail_to_dict,
     project_to_dict,
     summary_to_dict,
+    transaction_to_dict,
 )
-from app.models import Project, Transaction
+from app.models import (
+    EmployeeProject,  # noqa: F401
+    ExpenseCategory,
+    IncomeCategory,
+    Project,
+    Transaction,
+)
 from app.services.currency_service import get_rates_map
 from app.services.project_stats import ProjectStatsService
 
@@ -117,3 +126,109 @@ def api_projects_list():
         items.sort(key=key_func, reverse=reverse)
 
     return jsonify({"items": items, "count": len(items)})
+
+
+@api_v1_bp.route("/projects/<int:project_id>", methods=["GET"])
+def api_project_detail(project_id: int):
+    """
+    Детали проекта: финансы, сотрудники, транзакции.
+
+    Удалённые проекты недоступны — 404.
+    """
+    project = Project.active().filter_by(id=project_id).first()
+    if not project:
+        return jsonify({"error": "not_found", "message": "Project not found"}), 404
+
+    transactions = (
+        Transaction.active()
+        .options(joinedload(Transaction.project))
+        .filter_by(project_id=project.id)
+        .order_by(Transaction.date.desc())
+        .all()
+    )
+
+    income_cats = {c.id: c.name for c in IncomeCategory.query.all()}
+    expense_cats = {c.id: c.name for c in ExpenseCategory.query.all()}
+    categories = {**income_cats, **expense_cats}
+
+    codes = ProjectStatsService.collect_codes(transactions)
+    rates_map = get_rates_map(codes)
+    stats = ProjectStatsService.calculate(transactions, rates_map)
+
+    return jsonify(project_detail_to_dict(project, stats, transactions, categories))
+
+
+@api_v1_bp.route("/transactions", methods=["GET"])
+def api_transactions_list():
+    """
+    Список транзакций с фильтрами и пагинацией.
+
+    Query-параметры:
+    - date_from: YYYY-MM-DD
+    - date_to:   YYYY-MM-DD
+    - type:      income | expense
+    - currency:  RUB | USD | EUR
+    - project_id: int
+    - page:      int, по умолчанию 1
+    - per_page:  int, по умолчанию 50, максимум 200
+    """
+    try:
+        date_from = parse_date_param(request.args.get("date_from"), "date_from")
+        date_to = parse_date_param(request.args.get("date_to"), "date_to")
+    except ValueError as e:
+        return jsonify({"error": "invalid_parameter", "message": str(e)}), 400
+
+    # Пагинация
+    try:
+        page = max(int(request.args.get("page", 1)), 1)
+        per_page = min(max(int(request.args.get("per_page", 50)), 1), 200)
+    except ValueError:
+        return jsonify(
+            {"error": "invalid_parameter", "message": "page и per_page должны быть целыми"}
+        ), 400
+
+    # Фильтры
+    query = Transaction.active()
+
+    if date_from:
+        query = query.filter(Transaction.date >= date_from)
+    if date_to:
+        query = query.filter(Transaction.date <= date_to)
+
+    type_filter = request.args.get("type")
+    if type_filter in ("income", "expense"):
+        query = query.filter(Transaction.type == type_filter)
+
+    currency_filter = request.args.get("currency")
+    if currency_filter in ("RUB", "USD", "EUR"):
+        query = query.filter(Transaction.currency == currency_filter)
+
+    project_id = request.args.get("project_id", type=int)
+    if project_id:
+        query = query.filter(Transaction.project_id == project_id)
+
+    total = query.count()
+    transactions = (
+        query.options(joinedload(Transaction.project))
+        .order_by(Transaction.date.desc(), Transaction.id.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+
+    income_cats = {c.id: c.name for c in IncomeCategory.query.all()}
+    expense_cats = {c.id: c.name for c in ExpenseCategory.query.all()}
+    categories = {**income_cats, **expense_cats}
+
+    items = [transaction_to_dict(t, categories.get(t.category_id, "")) for t in transactions]
+
+    return jsonify(
+        {
+            "items": items,
+            "count": len(items),
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "pages": (total + per_page - 1) // per_page if total else 0,
+        }
+    )
