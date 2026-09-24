@@ -117,6 +117,10 @@ def create_app():
 
     app.register_blueprint(auth_bp)
 
+    from app.api.v1 import api_v1_bp
+
+    app.register_blueprint(api_v1_bp)
+
     # Глобальный фильтр для форматирования денег
     @app.template_filter("money")
     def money_filter(value):
@@ -158,19 +162,38 @@ def create_app():
         ]
         return {"all_flash_messages": regular, "sync_flashes": sync}
 
-    # Обработчики ошибок
+    # Обработчики ошибок.
+    # Для путей /api/* возвращаем JSON.
+    # Для остальных — HTML-страницы.
+    from flask import jsonify, request
+
+    def _is_api_request() -> bool:
+        return request.path.startswith("/api/")
+
     @app.errorhandler(404)
     def not_found_error(error):
+        if _is_api_request():
+            return jsonify({"error": "not_found", "message": "Resource not found"}), 404
         return render_template("errors/404.html"), 404
+
+    @app.errorhandler(405)
+    def method_not_allowed_error(error):
+        if _is_api_request():
+            return jsonify({"error": "method_not_allowed"}), 405
+        return error, 405
 
     @app.errorhandler(429)
     def ratelimit_handler(error):
+        if _is_api_request():
+            return jsonify({"error": "rate_limited", "message": str(error.description)}), 429
         return render_template("errors/429.html"), 429
 
     @app.errorhandler(500)
     def internal_error(error):
         db.session.rollback()
         app.logger.error(f"Internal Server Error: {error}", exc_info=True)
+        if _is_api_request():
+            return jsonify({"error": "internal_error"}), 500
         return render_template("errors/500.html"), 500
 
     @app.route("/healthz")
