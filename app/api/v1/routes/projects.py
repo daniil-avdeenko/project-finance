@@ -30,6 +30,15 @@ from app.services.currency_service import get_rates_map
 from app.services.project_stats import ProjectStatsService
 
 
+def _load_categories() -> dict[tuple[str, int], str]:
+    """
+    Имена категорий с ключом (type, category_id).
+    """
+    income = {("income", c.id): c.name for c in IncomeCategory.query.all()}
+    expense = {("expense", c.id): c.name for c in ExpenseCategory.query.all()}
+    return {**income, **expense}
+
+
 def _load_transactions(date_from, date_to) -> list:
     """Загружает активные транзакции за период + только по активным проектам."""
     active_project_ids = {p.id for p in Project.active().all()}
@@ -147,9 +156,7 @@ def api_project_detail(project_id: int):
         .all()
     )
 
-    income_cats = {c.id: c.name for c in IncomeCategory.query.all()}
-    expense_cats = {c.id: c.name for c in ExpenseCategory.query.all()}
-    categories = {**income_cats, **expense_cats}
+    categories = _load_categories()
 
     codes = ProjectStatsService.collect_codes(transactions)
     rates_map = get_rates_map(codes)
@@ -216,11 +223,11 @@ def api_transactions_list():
         .all()
     )
 
-    income_cats = {c.id: c.name for c in IncomeCategory.query.all()}
-    expense_cats = {c.id: c.name for c in ExpenseCategory.query.all()}
-    categories = {**income_cats, **expense_cats}
+    categories = _load_categories()
 
-    items = [transaction_to_dict(t, categories.get(t.category_id, "")) for t in transactions]
+    items = [
+        transaction_to_dict(t, categories.get((t.type, t.category_id), "")) for t in transactions
+    ]
 
     return jsonify(
         {
