@@ -85,7 +85,7 @@ def project_detail_to_dict(project, stats, transactions: list, categories: dict)
     Детальная карточка проекта: финансы + список транзакций + сотрудники.
 
     transactions — список активных транзакций проекта.
-    categories — {category_id: name} для сериализации транзакций.
+    categories — {(type, category_id): name} для сериализации транзакций.
     """
     return {
         "id": project.id,
@@ -105,7 +105,8 @@ def project_detail_to_dict(project, stats, transactions: list, categories: dict)
             for er in project.employee_roles
         ],
         "transactions": [
-            transaction_to_dict(t, categories.get(t.category_id, "")) for t in transactions
+            transaction_to_dict(t, categories.get((t.type, t.category_id), ""))
+            for t in transactions
         ],
         "transactions_count": len(transactions),
     }

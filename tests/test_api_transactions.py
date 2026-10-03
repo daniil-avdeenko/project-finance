@@ -245,3 +245,74 @@ def test_transactions_excludes_deleted(client, app):
     # Удалённая не попала
     assert data["total"] == 5
     assert all(t["amount"] != 999 for t in data["items"])
+
+
+def test_income_transaction_uses_income_category_name(app, client, admin_user):
+    """
+    Регресс: category_name для income берётся из IncomeCategory.
+
+    id доходных и расходных категорий пересекаются, раньше плоский
+    словарь {id: name} затирал income expense-именами.
+    """
+    from app import db
+
+    with app.app_context():
+        income_cat = IncomeCategory(name="Консультационные услуги")
+        expense_cat = ExpenseCategory(name="Расходы на ИИ")
+        db.session.add_all([income_cat, expense_cat])
+        db.session.commit()
+        income_id = income_cat.id
+
+        project = Project(name="Test", created_at=datetime.now(UTC))
+        db.session.add(project)
+        db.session.commit()
+        project_id = project.id
+
+        tx = Transaction(
+            project_id=project_id,
+            type="income",
+            category_id=income_id,
+            amount=1000.0,
+            currency="RUB",
+            date=datetime.now(UTC),
+        )
+        db.session.add(tx)
+        db.session.commit()
+
+    response = client.get(f"/api/v1/transactions?project_id={project_id}")
+    assert response.status_code == 200
+    item = response.json["items"][0]
+    assert item["type"] == "income"
+    assert item["category_name"] == "Консультационные услуги"
+
+
+def test_expense_transaction_uses_expense_category_name(app, client, admin_user):
+    """Обратная проверка — expense не сломался."""
+    from app import db
+
+    with app.app_context():
+        expense_cat = ExpenseCategory(name="Расходы на ИИ")
+        db.session.add(expense_cat)
+        db.session.commit()
+        expense_id = expense_cat.id
+
+        project = Project(name="Test", created_at=datetime.now(UTC))
+        db.session.add(project)
+        db.session.commit()
+        project_id = project.id
+
+        tx = Transaction(
+            project_id=project_id,
+            type="expense",
+            category_id=expense_id,
+            amount=500.0,
+            currency="RUB",
+            date=datetime.now(UTC),
+        )
+        db.session.add(tx)
+        db.session.commit()
+
+    response = client.get(f"/api/v1/transactions?project_id={project_id}")
+    item = response.json["items"][0]
+    assert item["type"] == "expense"
+    assert item["category_name"] == "Расходы на ИИ"
