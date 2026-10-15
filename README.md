@@ -5,8 +5,8 @@
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
 Flask-приложение для учёта доходов и расходов по проектам: CRUD,
-аналитика рентабельности, экспорт в CSV/Excel, синхронизация с Grist
-и Google Sheets, event-driven уведомления в Telegram, планировщик фоновых задач.
+аналитика рентабельности, экспорт в CSV/Excel, синхронизация с Google Sheets,
+event-driven уведомления в Telegram, планировщик фоновых задач.
 
 **Live demo:** https://projectfin.com.ru/ — логин `admin` / `admin`
 
@@ -33,9 +33,8 @@ Telegram AI-агент, который ходит в публичный REST API
 - **CRUD** проектов, сотрудников (с ролями на проектах), категорий и транзакций. Роли: админ / пользователь.
 - **Дашборд** с доходом, расходом, прибылью и рентабельностью за выбранный период.
 - **Мультивалютность.** Транзакции в RUB / USD / EUR конвертируются в рубли по актуальному курсу ЦБ на дату.
-- **Курсы ЦБ** парсятся с `cbr.ru` через Playwright (обход DDoS-Guard) и сохраняются в БД + Grist.
-- **Экспорт** в CSV, XLSX (openpyxl) и синхронизация с Google Sheets с валидацией полей.
-- **Grist** как витрина для команды: идемпотентный upsert с retry, chunking, prune удалённых записей.
+- *- **Курсы ЦБ** парсятся с `cbr.ru` через Playwright (обход DDoS-Guard) и сохраняются в БД.
+- **Экспорт** в CSV, XLSX (openpyxl) и синхронизация с Google Sheets: проекты, транзакции и последние курсы валют, валидация полей.
 - **Event-driven уведомления в Telegram** через очередь событий в БД и отдельный процесс-планировщик.
 - **Публичный REST API** `/api/v1/*` — используется внешним Telegram-агентом.
 - **Ручная синхронизация** из UI с отображением статуса и времени последней синхронизации.
@@ -64,11 +63,10 @@ flowchart TB
     Nginx --> Flask
     Nginx --> API
     API -->|httpx /api/v1/*| Flask
-    Flask --> DB1
+        Flask --> DB1
     DB1 -.after INSERT.-> Events[event_log]
     Events --> Sched
     Sched -->|digest| TG
-    Sched -->|upsert| Grist[Grist]
     Sched -->|batch update| Sheets[Google Sheets]
     Sched -->|Playwright| CBR[cbr.ru]
     API --> DB2
@@ -78,8 +76,8 @@ flowchart TB
 
 - **Разделение процессов.** Web и scheduler — два независимых контейнера в одном деплое. Scheduler запускается отдельно от Flask, чтобы при нескольких воркерах gunicorn задачи не дублировались.
 - **Event-driven.** Flask не вызывает Telegram напрямую — пишет событие в `event_log`, scheduler раз в 30 секунд выгребает pending и отправляет digest. Отказ Telegram не блокирует UX, события не теряются.
-- **Идемпотентность.** Grist использует `PUT /records` с `require: {"ID2": id}`. Google Sheets перезаписывается целиком. Повторный запуск синхронизации обновляет, а не дублирует.
-- **Устойчивость к сетевым сбоям.** Retry с экспоненциальным backoff (3 попытки, 1s → 2s → 4s) для Grist, chunking по 100 записей, sanitize трейсбеков перед отправкой в Telegram.
+- **Идемпотентность.** Google Sheets перезаписывается целиком при каждом запуске синхронизации. Повторный запуск обновляет, а не дублирует.
+- **Устойчивость к сетевым сбоям.** Sanitize трейсбеков перед отправкой в Telegram, graceful degradation при отказе внешних сервисов.
 - **Развязка сервисов.** Агент общается с приложением только через публичный API `/api/v1/*`. Нет shared-credentials к БД, можно менять и деплоить проекты независимо.
 - **Гибкая конфигурация секретов.** Google credentials читаются из `GOOGLE_CREDENTIALS_B64` (base64 в env) с fallback на файл — работает и на VPS, и локально.
 
@@ -92,7 +90,7 @@ flowchart TB
 | HTTP | httpx (async), requests |
 | Browser | Playwright (Chromium) |
 | Планировщик | APScheduler (AsyncIOScheduler) |
-| Интеграции | Grist API, Google Sheets API, Telegram Bot API |
+| Интеграции | Google Sheets API, Telegram Bot API |
 | UI | Bootstrap 5, Chart.js, Font Awesome |
 | Экспорт | CSV (stdlib), XLSX (openpyxl) |
 | Тесты | pytest, pytest-asyncio, pytest-cov, respx |
@@ -168,10 +166,6 @@ POSTGRES_PASSWORD=<hex>
 POSTGRES_DB=project_finance
 DATABASE_URL=postgresql://finance:<pass>@postgres:5432/project_finance
 
-GRIST_API_KEY=<ключ>
-GRIST_DOC_ID=<ID документа>
-GRIST_SERVER=https://docs.getgrist.com
-
 TELEGRAM_BOT_TOKEN=<токен от @BotFather>
 TELEGRAM_CHAT_ID=<ID чата>
 
@@ -206,7 +200,7 @@ Swagger UI: `/api/v1/docs` (за `@login_required`).
 - **Pre-commit:** ruff (линтер + форматтер), mypy, gitleaks, conventional-commit —
   запускаются локально на каждом коммите.
 - **GitHub Actions** (`.github/workflows/ci.yml`): на каждый push в `main` и PR
-  два параллельных job'а — `pytest` (276+ тестов, coverage 88%) и `ruff check` +
+  два параллельных job'а — `pytest` (245+ тестов, coverage 88%) и `ruff check` +
   `ruff format --check`. Версия ruff закреплена для совпадения с pre-commit.
 - **Branch protection:** PR обязателен, статус-чеки CI должны быть зелёными,
   force-push и удаление `main` запрещены.
@@ -215,7 +209,6 @@ Swagger UI: `/api/v1/docs` (за `@login_required`).
 ## CLI-команды
 
 ```bash
-flask sync-grist-httpx    # Синхронизация с Grist
 flask sync-sheets         # Синхронизация с Google Sheets
 flask scrape-cbr          # Парсинг курсов ЦБ (Playwright)
 flask send-test-message   # Тест Telegram-уведомлений
@@ -242,7 +235,6 @@ app/
 ├── routes/                    # CRUD-роуты по сущностям
 ├── api/v1/                    # публичный REST API
 ├── integrations/
-│   ├── grist_httpx.py         # Grist API: retry, chunking, prune
 │   ├── google_sheets.py       # gspread + валидация + base64 credentials
 │   ├── telegram.py            # Bot API, sanitize трейсбеков
 │   └── cbr_scraper.py         # Playwright + обход DDoS-Guard
