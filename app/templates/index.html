@@ -7,7 +7,7 @@
     <div class="d-flex align-items-center gap-3">
         <h1 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Дашборд</h1>
 
-        {% if usd_rate or eur_rate %}
+        {% if usd_rate or eur_rate or cny_rate %}
         <div class="d-flex align-items-center gap-3 text-muted small border-start ps-3">
             {% if usd_rate %}
             <span title="Курс ЦБ на {{ usd_rate.rate_date }}">
@@ -19,6 +19,11 @@
                 <i class="fas fa-euro-sign me-1"></i>{{ eur_rate.rate_rub|money }} ₽
             </span>
             {% endif %}
+            {% if cny_rate %}
+            <span title="Курс ЦБ на {{ cny_rate.rate_date }}">
+                <i class="fas fa-yen-sign me-1"></i>{{ cny_rate.rate_rub|money }} ₽
+            </span>
+            {% endif %}
         </div>
         {% endif %}
     </div>
@@ -27,14 +32,16 @@
         <!-- Форма выбора месяца/периода -->
         <form method="get" action="{{ url_for('main.index') }}" class="d-flex align-items-center gap-2">
             <div class="input-group input-group-sm" style="width: auto;">
-                <span class="input-group-text bg-transparent border-0"><i class="fas fa-calendar-alt text-muted"></i></span>
-                <select name="month" class="form-select form-select-sm" style="width: auto; border-radius: 0.2rem 0 0 0.2rem;">
+                <span class="input-group-text bg-transparent border-0"><i
+                        class="fas fa-calendar-alt text-muted"></i></span>
+                <select name="month" class="form-select form-select-sm"
+                        style="width: auto; border-radius: 0.2rem 0 0 0.2rem;">
                     <option value="all" {% if selected_month is none %}selected{% endif %}>Весь период</option>
                     {% for m in months %}
-                        <option value="{{ m.month }}" data-year="{{ m.year }}"
-                            {% if m.month == selected_month and m.year == selected_year %}selected{% endif %}>
-                            {{ m.label }}
-                        </option>
+                    <option value="{{ m.month }}" data-year="{{ m.year }}"
+                            {% if m.month== selected_month and m.year== selected_year %}selected{% endif %}>
+                        {{ m.label }}
+                    </option>
                     {% endfor %}
                 </select>
                 <input type="hidden" name="year" id="yearInput" value="{{ selected_year or '' }}">
@@ -161,7 +168,8 @@
                         <span style="font-size: 0.7rem; font-weight: normal;">({{ period_label }})</span>
                     </h6>
                     <h2 style="font-size: 1.6rem;">{{ total_profit|money }} ₽</h2>
-                    <small style="font-size: 0.8rem;">Рентабельность {{ "{:.1f}".format(overall_profitability) }}%</small>
+                    <small style="font-size: 0.8rem;">Рентабельность {{ "{:.1f}".format(overall_profitability)
+                        }}%</small>
                 </div>
                 <i class="fas fa-coins stat-icon"></i>
             </div>
@@ -179,12 +187,15 @@
         <div class="card h-100 project-card">
             <div class="card-body d-flex flex-column">
                 <h5 class="card-title" title="{{ project.name }}">{{ project.name }}</h5>
-                <p class="card-text text-muted flex-grow-1" title="{{ project.description or '' }}">{{ project.description or 'Без описания' }}</p>
+                <p class="card-text text-muted flex-grow-1" title="{{ project.description or '' }}">{{
+                    project.description or 'Без описания' }}</p>
                 <div class="d-flex justify-content-between mt-3">
-                    <span class="badge bg-success"><i class="fas fa-ruble-sign me-1"></i>{{ project.profit|money }}</span>
+                    <span class="badge bg-success"><i
+                            class="fas fa-ruble-sign me-1"></i>{{ project.profit|money }}</span>
                     <span class="badge bg-info"><i class="fas fa-percent me-1"></i>{{ "{:.1f}".format(project.profitability) }}%</span>
                 </div>
-                <a href="{{ url_for('main.project_detail', project_id=project.id) }}" class="btn btn-outline-primary btn-sm mt-3">
+                <a href="{{ url_for('main.project_detail', project_id=project.id) }}"
+                   class="btn btn-outline-primary btn-sm mt-3">
                     <i class="fas fa-arrow-right me-1"></i>Подробнее
                 </a>
             </div>

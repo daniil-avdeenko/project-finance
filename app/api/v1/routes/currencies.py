@@ -2,7 +2,7 @@
 Актуальные курсы валют ЦБ РФ.
 
 Источник — таблица currency_rates, которая обновляется job_scrape_cbr
-(Playwright, каждые 6 часов). Возвращает последний доступный курс.
+(Playwright, каждые 6 часов). Возвращает последний доступный курс USD, EUR, CNY.
 """
 
 from flask import jsonify
@@ -19,7 +19,7 @@ def api_currencies():
     Возвращает USD и EUR на последнюю доступную дату.
     Пустой объект — если курсы ещё не подгружены (первый запуск).
     """
-    rates = get_rates_map({"USD", "EUR"})
+    rates = get_rates_map({"USD", "EUR", "CNY"})
 
     result = {}
     for code, rate_list in rates.items():

@@ -1096,7 +1096,7 @@ def test_dashboard_converts_usd_to_rub(auth_client, app):
 
 
 def test_dashboard_shows_currency_rates(auth_client, app):
-    """Дашборд показывает актуальные курсы USD и EUR из БД."""
+    """Дашборд показывает актуальные курсы USD, EUR и CNY из БД."""
 
     class FakeRate:
         def __init__(self, code, nominal, rate, rate_date):
@@ -1110,11 +1110,13 @@ def test_dashboard_shows_currency_rates(auth_client, app):
             [
                 FakeRate("USD", 1, 84.50, date(2026, 9, 19)),
                 FakeRate("EUR", 1, 97.30, date(2026, 9, 19)),
+                FakeRate("CNY", 1, 12.15, date(2026, 9, 19)),
             ]
         )
 
     response = auth_client.get("/")
     text = response.get_data(as_text=True)
 
-    assert "84.50" in text or "84,50" in text or "84 500" in text
+    assert "84.50" in text or "84,50" in text
     assert "97.30" in text or "97,30" in text
+    assert "12.15" in text or "12,15" in text

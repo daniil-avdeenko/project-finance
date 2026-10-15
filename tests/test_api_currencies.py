@@ -52,3 +52,16 @@ def test_currencies_ignores_other_codes(client, app):
 
     assert "USD" in data["rates"]
     assert "JPY" not in data["rates"]
+
+
+def test_currencies_includes_cny(client, app):
+    """CNY возвращается вместе с USD/EUR."""
+    with app.app_context():
+        _db.session.add(
+            CurrencyRate(code="CNY", rate_date=date(2026, 9, 22), nominal=1, rate_rub=12.5)
+        )
+        _db.session.commit()
+
+    data = client.get("/api/v1/currencies").get_json()
+    assert "CNY" in data["rates"]
+    assert data["rates"]["CNY"]["rate_rub"] == 12.5
