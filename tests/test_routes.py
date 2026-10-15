@@ -468,6 +468,8 @@ def test_edit_transaction(auth_client, app):
         p_id = project.id
         c_id = category.id
 
+    valid_date = (datetime.now(UTC) - timedelta(days=5)).strftime("%Y-%m-%dT%H:%M")
+
     response = auth_client.post(
         f"/transactions/{t_id}/edit",
         data={
@@ -477,7 +479,7 @@ def test_edit_transaction(auth_client, app):
             "amount": "5000",
             "currency": "RUB",
             "description": "Новое описание",
-            "date": "2026-09-12T14:30",
+            "date": valid_date,
         },
         follow_redirects=True,
     )
