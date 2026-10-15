@@ -8,10 +8,15 @@ import binascii
 import json
 import logging
 import os
+import time
+from collections.abc import Callable
+from functools import wraps
 from pathlib import Path
+from typing import Any, TypeVar
 
 import gspread
 from google.oauth2.service_account import Credentials
+from gspread.exceptions import APIError
 from gspread_formatting import (
     BooleanCondition,
     CellFormat,
@@ -53,6 +58,64 @@ TRANSACTIONS_HEADERS = [
 EXCHANGE_RATES_HEADERS = ["Код", "Номинал", "Курс (₽)", "Дата"]
 VALID_TRANSACTION_TYPES = ["income", "expense"]
 VALID_CURRENCIES = ["RUB", "USD", "EUR"]
+
+# Параметры retry для вызовов Google API.
+RETRY_MAX_ATTEMPTS = 3
+RETRY_BASE_DELAY = 1.0
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def _with_retry(
+    max_attempts: int = RETRY_MAX_ATTEMPTS,
+    base_delay: float = RETRY_BASE_DELAY,
+) -> Callable[[F], F]:
+    """
+    Retry с экспоненциальным backoff для gspread-вызовов.
+
+    Повторяем только временные ошибки: 429 (rate limit) и 5xx.
+    Постоянные (400, 401, 403, 404) пробрасываем сразу — retry их
+    не вылечит, а только замедлит падение.
+
+    Вызывается из кода, работающего в отдельном потоке
+    (asyncio.to_thread), поэтому time.sleep безопасен для event loop.
+    """
+
+    def decorator(func: F) -> F:
+        @wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            last_exc: APIError | None = None
+
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    return func(*args, **kwargs)
+                except APIError as e:
+                    status = getattr(e.response, "status_code", None)
+                    is_retryable = status == 429 or (status is not None and 500 <= status < 600)
+
+                    if not is_retryable or attempt == max_attempts:
+                        raise
+
+                    delay = base_delay * (2 ** (attempt - 1))
+                    logger.warning(
+                        "Google API %s на %s (попытка %d/%d), повтор через %.1fс",
+                        status,
+                        func.__name__,
+                        attempt,
+                        max_attempts,
+                        delay,
+                    )
+                    time.sleep(delay)
+                    last_exc = e
+
+            # Недостижимо: цикл либо вернёт, либо бросит. Оставлено для mypy.
+            if last_exc is not None:
+                raise last_exc
+            raise RuntimeError("Retry loop exited without result or exception")
+
+        return wrapper  # type: ignore[return-value]
+
+    return decorator
 
 
 def get_client() -> gspread.Client:
@@ -145,8 +208,11 @@ def apply_validation(worksheet: gspread.Worksheet) -> None:
     set_data_validation_for_cell_range(worksheet, "F2:F1000", currency_rule)
 
 
+@_with_retry()
 def _fill_worksheet(worksheet: gspread.Worksheet, headers: list[str], rows: list[list]) -> None:
-    """Очищает лист, пишет заголовки и данные одним вызовом."""
+    """
+    Очищает лист, пишет заголовки и данные одним вызовом.
+    """
     worksheet.clear()
     apply_headers(worksheet, headers)
     if rows:
