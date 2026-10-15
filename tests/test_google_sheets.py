@@ -1,5 +1,6 @@
 """Тесты интеграции с Google Sheets через gspread (без сети)."""
 
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -215,45 +216,50 @@ def test_sync_transactions_skips_validation_on_existing_sheet(
 # ============================================================
 
 
+@patch("app.integrations.google_sheets.sync_exchange_rates_to_sheets")
 @patch("app.integrations.google_sheets.sync_transactions_to_sheets")
 @patch("app.integrations.google_sheets.sync_projects_to_sheets")
 @patch("app.integrations.google_sheets.ensure_sheets")
 @patch("app.integrations.google_sheets.get_spreadsheet")
-def test_sync_all_calls_both(mock_spreadsheet, mock_ensure, mock_projects, mock_transactions):
-    """sync_all вызывает оба sync'а и возвращает счётчики."""
-    # ensure_sheets возвращает (dict, set) — второй элемент это созданные листы
+def test_sync_all_calls_both(
+    mock_spreadsheet, mock_ensure, mock_projects, mock_transactions, mock_rates
+):
+    """sync_all вызывает все три sync'а и возвращает счётчики."""
     mock_ensure.return_value = (
-        {"Projects": MagicMock(), "Transactions": MagicMock()},
-        set(),  # ничего не создано — оба листа уже были
+        {"Projects": MagicMock(), "Transactions": MagicMock(), "ExchangeRates": MagicMock()},
+        set(),
     )
     mock_projects.return_value = 6
     mock_transactions.return_value = 386
+    mock_rates.return_value = 3
 
-    result = gs.sync_all_to_sheets(projects=[], transactions=[])
+    result = gs.sync_all_to_sheets(projects=[], transactions=[], rates=[])
 
-    assert result == {"projects": 6, "transactions": 386}
+    assert result == {"projects": 6, "transactions": 386, "rates": 3}
     mock_projects.assert_called_once()
     mock_transactions.assert_called_once()
-    # is_new_sheet=False, т.к. Transactions не в created
+    mock_rates.assert_called_once()
     assert mock_transactions.call_args.kwargs.get("is_new_sheet") is False
 
 
+@patch("app.integrations.google_sheets.sync_exchange_rates_to_sheets")
 @patch("app.integrations.google_sheets.sync_transactions_to_sheets")
 @patch("app.integrations.google_sheets.sync_projects_to_sheets")
 @patch("app.integrations.google_sheets.ensure_sheets")
 @patch("app.integrations.google_sheets.get_spreadsheet")
 def test_sync_all_applies_formatting_on_new_sheet(
-    mock_spreadsheet, mock_ensure, mock_projects, mock_transactions
+    mock_spreadsheet, mock_ensure, mock_projects, mock_transactions, mock_rates
 ):
     """Если лист Transactions создан впервые — is_new_sheet=True."""
     mock_ensure.return_value = (
-        {"Projects": MagicMock(), "Transactions": MagicMock()},
-        {"Transactions"},  # только что создан
+        {"Projects": MagicMock(), "Transactions": MagicMock(), "ExchangeRates": MagicMock()},
+        {"Transactions"},
     )
     mock_projects.return_value = 6
     mock_transactions.return_value = 100
+    mock_rates.return_value = 3
 
-    gs.sync_all_to_sheets(projects=[], transactions=[])
+    gs.sync_all_to_sheets(projects=[], transactions=[], rates=[])
 
     assert mock_transactions.call_args.kwargs.get("is_new_sheet") is True
 
@@ -332,3 +338,45 @@ def test_get_client_falls_back_to_file(monkeypatch, tmp_path):
 
     with pytest.raises(FileNotFoundError):
         gs.get_client()
+
+
+# ============================================================
+#   sync_exchange_rates_to_sheets
+# ============================================================
+
+
+@patch("app.integrations.google_sheets.format_cell_range")
+def test_sync_exchange_rates_writes_rows(_fmt, mock_worksheet):
+    """Формирует по одной строке на курс, сортировка — по алфавиту."""
+
+    class FakeRate:
+        def __init__(self, code, nominal, rate_rub, rate_date):
+            self.code = code
+            self.nominal = nominal
+            self.rate_rub = rate_rub
+            self.rate_date = rate_date
+
+    rates = [
+        FakeRate("CNY", 1, 12.15, date(2026, 9, 19)),
+        FakeRate("EUR", 1, 97.30, date(2026, 9, 19)),
+        FakeRate("USD", 1, 84.50, date(2026, 9, 19)),
+    ]
+
+    count = gs.sync_exchange_rates_to_sheets(mock_worksheet, rates)
+
+    assert count == 3
+    data_calls = [c for c in mock_worksheet.update.call_args_list if c.args[1].startswith("A2")]
+    assert len(data_calls) == 1
+    rows = data_calls[0].args[0]
+    assert rows[0] == ["CNY", 1, 12.15, "2026-09-19"]
+    assert rows[2] == ["USD", 1, 84.50, "2026-09-19"]
+
+
+@patch("app.integrations.google_sheets.format_cell_range")
+def test_sync_exchange_rates_empty(_fmt, mock_worksheet):
+    """Пустой список курсов — только заголовки, без данных."""
+    count = gs.sync_exchange_rates_to_sheets(mock_worksheet, [])
+
+    assert count == 0
+    data_calls = [c for c in mock_worksheet.update.call_args_list if c.args[1].startswith("A2")]
+    assert data_calls == []

@@ -428,10 +428,11 @@ def sync_grist_now():
 @login_required
 @admin_required
 def sync_sheets_now():
-    """Ручная синхронизация с Google Sheets."""
+    """Ручная синхронизация с Google Sheets (проекты, транзакции, курсы)."""
     from sqlalchemy.orm import joinedload
 
     from app.integrations.google_sheets import sync_all_to_sheets
+    from app.services.currency_service import get_latest_rates
 
     projects = Project.active().all()
     transactions = (
@@ -440,10 +441,11 @@ def sync_sheets_now():
         .order_by(Transaction.date.desc())
         .all()
     )
+    rates = get_latest_rates({"USD", "EUR", "CNY"})
 
     try:
-        result = sync_all_to_sheets(projects, transactions)
-        total = result["projects"] + result["transactions"]
+        result = sync_all_to_sheets(projects, transactions, rates)
+        total = result["projects"] + result["transactions"] + result["rates"]
         log_sync("sheets", "success", records_count=total)
         flash("Google Sheets синхронизирован", "sync_success")
     except Exception as e:

@@ -158,3 +158,14 @@ def convert_with_rates(
         return amount
 
     return round(amount * rate.rate_rub / rate.nominal, 2)
+
+
+def get_latest_rates(codes: set[str]) -> list[CurrencyRate]:
+    """
+    Последний доступный курс для каждого из кодов.
+
+    Используется для синхронизации курсов в Google Sheets.
+    Порядок — по алфавиту кода, RUB игнорируется.
+    """
+    rates_map = get_rates_map(codes)
+    return [rates_map[code][0] for code in sorted(rates_map) if rates_map[code]]
