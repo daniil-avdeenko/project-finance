@@ -15,7 +15,6 @@ from scheduler.jobs import (
     job_healthcheck,
     job_process_events,
     job_scrape_cbr,
-    job_sync_grist,
 )
 
 SEND_URL = "https://api.telegram.org/bottest-token-123/sendMessage"
@@ -128,91 +127,6 @@ async def test_process_events_no_pending(app):
     await job_process_events(app)  # должно просто пройти
 
 
-# ---------- job_sync_grist ----------
-
-
-@respx.mock
-async def test_sync_grist_creates_summary_event_on_added(app):
-    """Если в Grist что-то добавилось — создаётся summary-событие."""
-    respx.post(SEND_URL).mock(return_value=httpx.Response(200, json={"ok": True}))
-
-    with app.app_context():
-        _db.session.add(Project(name="P1"))
-        _db.session.commit()
-        EventLog.query.delete()  # чистим событие от INSERT Project
-        _db.session.commit()
-
-    with (
-        patch(
-            "app.integrations.grist_httpx.sync_projects_to_grist_httpx",
-            new=AsyncMock(return_value={"added": 1, "updated": 0}),
-        ),
-        patch(
-            "app.integrations.grist_httpx.sync_transactions_to_grist_httpx",
-            new=AsyncMock(return_value={"added": 0, "updated": 0}),
-        ),
-    ):
-        await job_sync_grist(app)
-
-    with app.app_context():
-        events = EventLog.query.filter_by(event_type="grist_sync_summary").all()
-        assert len(events) == 1
-        assert events[0].payload["projects_added"] == 1
-
-
-@respx.mock
-async def test_sync_grist_no_summary_when_nothing_added(app):
-    """Нет добавленных — нет summary-события."""
-    with app.app_context():
-        _db.session.add(Project(name="P1"))
-        _db.session.commit()
-        EventLog.query.delete()
-        _db.session.commit()
-
-    with (
-        patch(
-            "app.integrations.grist_httpx.sync_projects_to_grist_httpx",
-            new=AsyncMock(return_value={"added": 0, "updated": 1}),
-        ),
-        patch(
-            "app.integrations.grist_httpx.sync_transactions_to_grist_httpx",
-            new=AsyncMock(return_value={"added": 0, "updated": 0}),
-        ),
-    ):
-        await job_sync_grist(app)
-
-    with app.app_context():
-        assert EventLog.query.filter_by(event_type="grist_sync_summary").count() == 0
-
-
-@respx.mock
-async def test_sync_grist_creates_error_event_on_exception(app):
-    """Ошибка sync → error-событие в очереди."""
-    with app.app_context():
-        _db.session.add(Project(name="P1"))
-        _db.session.commit()
-        EventLog.query.delete()
-        _db.session.commit()
-
-    with (
-        patch(
-            "app.integrations.grist_httpx.sync_projects_to_grist_httpx",
-            new=AsyncMock(side_effect=ValueError("boom")),
-        ),
-        patch(
-            "app.integrations.grist_httpx.sync_transactions_to_grist_httpx",
-            new=AsyncMock(return_value={"added": 0, "updated": 0}),
-        ),
-    ):
-        await job_sync_grist(app)
-
-    with app.app_context():
-        events = EventLog.query.filter_by(event_type="error").all()
-        assert len(events) == 1
-        assert events[0].payload["error_type"] == "ValueError"
-        assert events[0].payload["task_name"] == "job_sync_grist"
-
-
 # ---------- job_healthcheck ----------
 
 
@@ -233,30 +147,19 @@ async def test_healthcheck_sends_message(app):
 
 
 async def test_scrape_cbr_job_success(app):
-    """Успешный парсинг → upsert в БД и sync в Grist, без error-события."""
+    """Успешный парсинг → upsert в БД, без error-события."""
     fake_rates = [
         ScrapedRate(code="USD", nominal=1, rate=84.50, rate_date=date(2026, 9, 19)),
         ScrapedRate(code="EUR", nominal=1, rate=97.50, rate_date=date(2026, 9, 19)),
         ScrapedRate(code="JPY", nominal=100, rate=54.12, rate_date=date(2026, 9, 19)),
     ]
 
-    with (
-        patch(
-            "app.integrations.cbr_scraper.scrape_cbr_rates",
-            new=AsyncMock(return_value=fake_rates),
-        ),
-        patch(
-            "app.integrations.grist_httpx.sync_rates_to_grist_httpx",
-            new=AsyncMock(return_value={"added": 3, "updated": 0}),
-        ) as sync_mock,
+    with patch(
+        "app.integrations.cbr_scraper.scrape_cbr_rates",
+        new=AsyncMock(return_value=fake_rates),
     ):
         await job_scrape_cbr(app)
 
-    # Grist получил те же курсы
-    assert sync_mock.called
-    assert sync_mock.call_args[0][0] == fake_rates
-
-    # БД тоже наполнилась
     with app.app_context():
         from app.models import CurrencyRate
 
@@ -268,23 +171,18 @@ async def test_scrape_cbr_job_success(app):
         assert EventLog.query.filter_by(event_type="error").count() == 0
 
 
-async def test_scrape_cbr_job_empty_result_does_not_sync(app):
-    """Пустой парсинг → sync не вызывается, ошибки нет."""
-    with (
-        patch(
-            "app.integrations.cbr_scraper.scrape_cbr_rates",
-            new=AsyncMock(return_value=[]),
-        ),
-        patch(
-            "app.integrations.grist_httpx.sync_rates_to_grist_httpx",
-            new=AsyncMock(),
-        ) as sync_mock,
+async def test_scrape_cbr_job_empty_result_does_not_touch_db(app):
+    """Пустой парсинг → ранний выход: БД пустая, ошибок нет."""
+    with patch(
+        "app.integrations.cbr_scraper.scrape_cbr_rates",
+        new=AsyncMock(return_value=[]),
     ):
         await job_scrape_cbr(app)
 
-    assert not sync_mock.called
-
     with app.app_context():
+        from app.models import CurrencyRate
+
+        assert CurrencyRate.query.count() == 0
         assert EventLog.query.filter_by(event_type="error").count() == 0
 
 
