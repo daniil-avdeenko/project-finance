@@ -282,7 +282,7 @@ class SyncLog(db.Model):
     __tablename__ = "sync_log"
 
     id = db.Column(db.Integer, primary_key=True)
-    sync_type = db.Column(db.String(20), nullable=False, index=True)  # 'grist', 'sheets'
+    sync_type = db.Column(db.String(20), nullable=False, index=True)  # 'sheets'
     status = db.Column(db.String(20), nullable=False, default="success")  # 'success', 'error'
     synced_at = db.Column(
         db.DateTime, nullable=False, default=lambda: datetime.now(UTC), index=True
