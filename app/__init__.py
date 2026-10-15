@@ -204,34 +204,6 @@ def create_app():
 
         return {"status": "ok"}, 200
 
-    # команда для импорта в Grist
-    @app.cli.command("sync-grist-httpx")
-    def sync_grist_httpx_command():
-        """Синхронизирует данные из БД в Grist с помощью httpx (upsert)."""
-        from app.integrations.grist_httpx import (
-            sync_projects_to_grist_httpx,
-            sync_transactions_to_grist_httpx,
-        )
-        from app.models import Project, Transaction
-
-        app.logger.info("Начинаю синхронизацию с Grist через httpx...")
-        try:
-            projects = Project.active().all()
-            transactions = (
-                Transaction.active()
-                .options(joinedload(Transaction.project))
-                .order_by(Transaction.date.desc())
-                .all()
-            )
-
-            # Запускаем асинхронные задачи
-            asyncio.run(sync_projects_to_grist_httpx(projects))
-            asyncio.run(sync_transactions_to_grist_httpx(transactions))
-
-            app.logger.info("Синхронизация с Grist через httpx успешно завершена.")
-        except Exception as e:
-            app.logger.error(f"Ошибка синхронизации с Grist: {e}", exc_info=True)
-
     # команда для проверки уведомлений Telegram
     @app.cli.command("send-test-message")
     def send_test_message_command():

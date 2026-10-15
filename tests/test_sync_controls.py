@@ -45,68 +45,6 @@ def test_get_last_sync_empty(app):
 
 
 # ============================================================
-#   Роут /sync/grist
-# ============================================================
-
-
-def test_sync_grist_forbidden_for_regular_user(regular_client):
-    response = regular_client.post("/sync/grist", follow_redirects=False)
-    assert response.status_code == 302
-
-
-def test_sync_grist_requires_login(client):
-    response = client.post("/sync/grist", follow_redirects=False)
-    assert response.status_code == 302
-    assert "/login" in response.location
-
-
-def test_sync_grist_success(auth_client, app):
-    """Роут синхронизирует Grist и логирует успех."""
-    with (
-        patch(
-            "app.integrations.grist_httpx.sync_projects_to_grist_httpx",
-            new=AsyncMock(return_value={"added": 1, "updated": 0, "deleted": 0}),
-        ),
-        patch(
-            "app.integrations.grist_httpx.sync_transactions_to_grist_httpx",
-            new=AsyncMock(return_value={"added": 5, "updated": 0, "deleted": 0}),
-        ),
-    ):
-        response = auth_client.post("/sync/grist", follow_redirects=True)
-    assert "Grist синхронизирован" in response.get_data(as_text=True)
-    assert response.status_code == 200
-
-    with app.app_context():
-        log = get_last_sync("grist")
-        assert log is not None
-        assert log.status == "success"
-        assert log.records_count == 6  # 1 + 5
-
-
-def test_sync_grist_error(auth_client, app):
-    """Ошибка в Grist логируется как error, Sheets-лог не трогается."""
-    with (
-        patch(
-            "app.integrations.grist_httpx.sync_projects_to_grist_httpx",
-            new=AsyncMock(side_effect=RuntimeError("grist down")),
-        ),
-        patch(
-            "app.integrations.grist_httpx.sync_transactions_to_grist_httpx",
-            new=AsyncMock(return_value={"added": 0, "updated": 0, "deleted": 0}),
-        ),
-    ):
-        response = auth_client.post("/sync/grist", follow_redirects=True)
-
-    assert response.status_code == 200
-    assert "Ошибка синхронизации Grist" in response.get_data(as_text=True)
-
-    with app.app_context():
-        assert get_last_sync("grist").status == "error"
-        # Sheets-лог не должен появиться — синхронизация Sheets не вызывалась
-        assert get_last_sync("sheets") is None
-
-
-# ============================================================
 #   Роут /sync/sheets
 # ============================================================
 
@@ -165,28 +103,24 @@ def test_dashboard_shows_sync_times(auth_client, app):
     import re
 
     with app.app_context():
-        log_sync("grist", "success", records_count=1)
+        log_sync("sheets", "success", records_count=1)
 
     response = auth_client.get("/")
     text = response.get_data(as_text=True)
 
-    # Дата-время в формате «22.09 15:30»
     assert re.search(r"\d{2}\.\d{2} \d{2}:\d{2}", text)
-    # Tooltip содержит название сервиса
-    assert "Grist:" in text
+    assert "Sheets:" in text
 
 
-def test_dashboard_shows_both_sync_buttons_for_admin(auth_client):
+def test_dashboard_shows_sync_button_for_admin(auth_client):
     response = auth_client.get("/")
     text = response.get_data(as_text=True)
-    assert "/sync/grist" in text
     assert "/sync/sheets" in text
 
 
-def test_dashboard_hides_sync_buttons_for_user(regular_client):
+def test_dashboard_hides_sync_button_for_user(regular_client):
     response = regular_client.get("/")
     text = response.get_data(as_text=True)
-    assert "/sync/grist" not in text
     assert "/sync/sheets" not in text
 
 
@@ -228,7 +162,7 @@ def test_dashboard_renders_msk_time(auth_client, app):
 
     with app.app_context():
         entry = SyncLog(
-            sync_type="grist",
+            sync_type="sheets",
             status="success",
             synced_at=datetime(2026, 9, 22, 12, 0, tzinfo=UTC),
         )

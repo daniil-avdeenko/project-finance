@@ -60,19 +60,6 @@ def _format_digest(events: list[EventLog]) -> str:
         if len(items) > MAX_ITEMS_PER_GROUP:
             parts.append(f"• и ещё {len(items) - MAX_ITEMS_PER_GROUP}")
 
-    if "grist_sync_summary" in by_type:
-        for e in by_type["grist_sync_summary"]:
-            p = e.payload
-            parts.append("")
-            parts.append(
-                f"🔄 <b>Grist sync:</b> +{p.get('projects_added', 0)} проектов, "
-                f"+{p.get('transactions_added', 0)} транзакций"
-            )
-            deleted_p = p.get("projects_deleted", 0)
-            deleted_t = p.get("transactions_deleted", 0)
-            if deleted_p or deleted_t:
-                parts.append(f"🗑️ Удалено: {deleted_p} проектов, {deleted_t} транзакций")
-
     if "error" in by_type:
         for e in by_type["error"]:
             p = e.payload
@@ -135,84 +122,6 @@ async def job_process_events(app) -> None:
 
 
 # ============================================================
-#   JOB: синхронизация с Grist
-# ============================================================
-
-
-async def job_sync_grist(app) -> None:
-    """Раз в 30 минут: upsert Project/Transaction в Grist."""
-    with app.app_context():
-        from app.integrations.grist_httpx import (
-            sync_projects_to_grist_httpx,
-            sync_transactions_to_grist_httpx,
-        )
-        from app.services.sync_service import log_sync
-
-        try:
-            projects = Project.active().all()
-            transactions = (
-                Transaction.active()
-                .options(joinedload(Transaction.project))
-                .order_by(Transaction.date.desc())
-                .all()
-            )
-
-            p_result = await sync_projects_to_grist_httpx(projects)
-            t_result = await sync_transactions_to_grist_httpx(transactions)
-
-            total = (
-                p_result.get("added", 0)
-                + t_result.get("added", 0)
-                + p_result.get("updated", 0)
-                + t_result.get("updated", 0)
-            )
-            log_sync("grist", "success", records_count=total)
-
-            added = p_result.get("added", 0) + t_result.get("added", 0)
-            deleted = p_result.get("deleted", 0) + t_result.get("deleted", 0)
-
-            if added > 0 or deleted > 0:
-                db.session.add(
-                    EventLog(
-                        event_type="grist_sync_summary",
-                        payload={
-                            "projects_added": p_result.get("added", 0),
-                            "transactions_added": t_result.get("added", 0),
-                            "projects_updated": p_result.get("updated", 0),
-                            "transactions_updated": t_result.get("updated", 0),
-                            "projects_deleted": p_result.get("deleted", 0),
-                            "transactions_deleted": t_result.get("deleted", 0),
-                        },
-                        status="pending",
-                    )
-                )
-                db.session.commit()
-                logger.info("Grist sync: added=%d, deleted=%d", added, deleted)
-
-        except asyncio.CancelledError:
-            logger.info("job_sync_grist отменён (shutdown)")
-            raise
-        except Exception as e:
-            db.session.rollback()
-            logger.exception("job_sync_grist failed")
-            log_sync("grist", "error", error=str(e)[:500])
-            # Ошибку тоже кладём в очередь — отправится следующим циклом process_events
-            db.session.add(
-                EventLog(
-                    event_type="error",
-                    payload={
-                        "task_name": "job_sync_grist",
-                        "error_type": type(e).__name__,
-                        "error_message": str(e),
-                        "traceback": tb_module.format_exc()[-1500:],
-                    },
-                    status="pending",
-                )
-            )
-            db.session.commit()
-
-
-# ============================================================
 #   JOB: healthcheck
 # ============================================================
 
@@ -230,10 +139,9 @@ async def job_healthcheck(app) -> None:
 
 
 async def job_scrape_cbr(app) -> None:
-    """Раз в 6 часов: парсит курсы ЦБ и сохраняет в БД + Grist."""
+    """Раз в 6 часов: парсит курсы ЦБ и сохраняет в БД."""
     with app.app_context():
         from app.integrations.cbr_scraper import scrape_cbr_rates
-        from app.integrations.grist_httpx import sync_rates_to_grist_httpx
         from app.services.currency_service import upsert_rates
 
         try:
@@ -242,17 +150,12 @@ async def job_scrape_cbr(app) -> None:
                 logger.warning("job_scrape_cbr: пустой результат парсинга")
                 return
 
-            # 1. БД — источник истины для расчётов
-            db_result = upsert_rates(rates)
+            result = upsert_rates(rates)
             logger.info(
-                "job_scrape_cbr DB: added=%d, updated=%d",
-                db_result["added"],
-                db_result["updated"],
+                "job_scrape_cbr: added=%d, updated=%d",
+                result["added"],
+                result["updated"],
             )
-
-            # 2. Grist — витрина для команды (лог курсов)
-            await sync_rates_to_grist_httpx(rates)
-            logger.info("job_scrape_cbr Grist: получено %d курсов", len(rates))
 
         except asyncio.CancelledError:
             logger.info("job_scrape_cbr отменён (shutdown)")

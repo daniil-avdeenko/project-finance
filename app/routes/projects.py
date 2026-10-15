@@ -1,4 +1,3 @@
-import asyncio
 import calendar
 import csv
 import os
@@ -141,13 +140,7 @@ def index():
         usd_rate=usd_rate,
         eur_rate=eur_rate,
         cny_rate=cny_rate,
-        last_grist_sync=get_last_sync("grist"),
         last_sheets_sync=get_last_sync("sheets"),
-        grist_url=(
-            f"https://docs.getgrist.com/doc/{os.getenv('GRIST_DOC_ID')}"
-            if os.getenv("GRIST_DOC_ID")
-            else None
-        ),
         sheets_url=(
             f"https://docs.google.com/spreadsheets/d/{os.getenv('GOOGLE_SPREADSHEET_ID')}"
             if os.getenv("GOOGLE_SPREADSHEET_ID")
@@ -384,44 +377,6 @@ def chart():
         )
 
     return render_template("chart.html", month_labels=month_labels, projects_data=projects_data)
-
-
-@main_bp.route("/sync/grist", methods=["POST"])
-@login_required
-@admin_required
-def sync_grist_now():
-    """Ручная синхронизация с Grist."""
-    from sqlalchemy.orm import joinedload
-
-    from app.integrations.grist_httpx import (
-        sync_projects_to_grist_httpx,
-        sync_transactions_to_grist_httpx,
-    )
-
-    projects = Project.active().all()
-    transactions = (
-        Transaction.active()
-        .options(joinedload(Transaction.project))
-        .order_by(Transaction.date.desc())
-        .all()
-    )
-
-    try:
-        p_result = asyncio.run(sync_projects_to_grist_httpx(projects))
-        t_result = asyncio.run(sync_transactions_to_grist_httpx(transactions))
-        total = (
-            p_result.get("added", 0)
-            + t_result.get("added", 0)
-            + p_result.get("updated", 0)
-            + t_result.get("updated", 0)
-        )
-        log_sync("grist", "success", records_count=total)
-        flash("Grist синхронизирован", "sync_success")
-    except Exception as e:
-        log_sync("grist", "error", error=str(e)[:500])
-        flash(f"Ошибка синхронизации Grist: {short_error(e)}", "sync_error")
-
-    return safe_redirect(url_for("main.index"))
 
 
 @main_bp.route("/sync/sheets", methods=["POST"])
