@@ -125,7 +125,7 @@ def test_sync_sheets_requires_login(client):
 def test_sync_sheets_success(auth_client, app):
     with patch(
         "app.integrations.google_sheets.sync_all_to_sheets",
-        return_value={"projects": 6, "transactions": 100},
+        return_value={"projects": 6, "transactions": 100, "rates": 3},
     ):
         response = auth_client.post("/sync/sheets", follow_redirects=True)
 
@@ -135,7 +135,7 @@ def test_sync_sheets_success(auth_client, app):
         log = get_last_sync("sheets")
         assert log is not None
         assert log.status == "success"
-        assert log.records_count == 106  # 6 + 100
+        assert log.records_count == 109  # 6 + 100 + 3
         assert "Google Sheets синхронизирован" in response.get_data(as_text=True)
 
 

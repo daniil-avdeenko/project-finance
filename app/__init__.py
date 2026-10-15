@@ -288,9 +288,10 @@ def create_app():
 
     @app.cli.command("sync-sheets")
     def sync_sheets_command():
-        """Синхронизирует проекты и транзакции в Google Sheets."""
+        """Синхронизирует проекты, транзакции и курсы в Google Sheets."""
         from app.integrations.google_sheets import sync_all_to_sheets
         from app.models import Project, Transaction
+        from app.services.currency_service import get_latest_rates
 
         app.logger.info("Начинаю синхронизацию с Google Sheets...")
         try:
@@ -301,11 +302,13 @@ def create_app():
                 .order_by(Transaction.date.desc())
                 .all()
             )
-            result = sync_all_to_sheets(projects, transactions)
+            rates = get_latest_rates({"USD", "EUR", "CNY"})
+            result = sync_all_to_sheets(projects, transactions, rates)
             app.logger.info(
-                "Google Sheets: %d проектов, %d транзакций",
+                "Google Sheets: %d проектов, %d транзакций, %d курсов",
                 result["projects"],
                 result["transactions"],
+                result["rates"],
             )
         except Exception as e:
             app.logger.error("Ошибка sync-sheets: %s", e, exc_info=True)

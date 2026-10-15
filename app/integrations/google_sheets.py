@@ -50,6 +50,7 @@ TRANSACTIONS_HEADERS = [
     "Описание",
 ]
 
+EXCHANGE_RATES_HEADERS = ["Код", "Номинал", "Курс (₽)", "Дата"]
 VALID_TRANSACTION_TYPES = ["income", "expense"]
 VALID_CURRENCIES = ["RUB", "USD", "EUR"]
 
@@ -202,12 +203,27 @@ def sync_transactions_to_sheets(
     return len(rows)
 
 
-def sync_all_to_sheets(projects: list, transactions: list) -> dict[str, int]:
+def sync_exchange_rates_to_sheets(worksheet: gspread.Worksheet, rates: list) -> int:
+    """Экспортирует последние курсы валют. Возвращает количество строк."""
+    rows = [
+        [
+            r.code,
+            r.nominal,
+            r.rate_rub,
+            r.rate_date.strftime("%Y-%m-%d") if r.rate_date else "",
+        ]
+        for r in rates
+    ]
+    _fill_worksheet(worksheet, EXCHANGE_RATES_HEADERS, rows)
+    return len(rows)
+
+
+def sync_all_to_sheets(projects: list, transactions: list, rates: list) -> dict[str, int]:
     """
-    Полная синхронизация: проекты + транзакции.
+    Полная синхронизация: проекты + транзакции + курсы валют.
     """
     spreadsheet = get_spreadsheet()
-    sheets, created = ensure_sheets(spreadsheet, ["Projects", "Transactions"])
+    sheets, created = ensure_sheets(spreadsheet, ["Projects", "Transactions", "ExchangeRates"])
 
     n_projects = sync_projects_to_sheets(sheets["Projects"], projects)
     n_transactions = sync_transactions_to_sheets(
@@ -215,13 +231,15 @@ def sync_all_to_sheets(projects: list, transactions: list) -> dict[str, int]:
         transactions,
         is_new_sheet="Transactions" in created,
     )
+    n_rates = sync_exchange_rates_to_sheets(sheets["ExchangeRates"], rates)
 
     logger.info(
-        "Google Sheets: экспортировано %d проектов, %d транзакций",
+        "Google Sheets: экспортировано %d проектов, %d транзакций, %d курсов",
         n_projects,
         n_transactions,
+        n_rates,
     )
-    return {"projects": n_projects, "transactions": n_transactions}
+    return {"projects": n_projects, "transactions": n_transactions, "rates": n_rates}
 
 
 def apply_number_format(worksheet: gspread.Worksheet) -> None:

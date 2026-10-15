@@ -281,9 +281,10 @@ async def job_scrape_cbr(app) -> None:
 
 
 async def job_sync_sheets(app) -> None:
-    """Раз в час: экспорт проектов и транзакций в Google Sheets."""
+    """Раз в час: экспорт проектов, транзакций и курсов в Google Sheets."""
     with app.app_context():
         from app.integrations.google_sheets import sync_all_to_sheets
+        from app.services.currency_service import get_latest_rates
         from app.services.sync_service import log_sync
 
         try:
@@ -294,14 +295,17 @@ async def job_sync_sheets(app) -> None:
                 .order_by(Transaction.date.desc())
                 .all()
             )
+            rates = get_latest_rates({"USD", "EUR", "CNY"})
+
             # gspread синхронный — уводим в отдельный поток
-            result = await asyncio.to_thread(sync_all_to_sheets, projects, transactions)
-            total = result["projects"] + result["transactions"]
+            result = await asyncio.to_thread(sync_all_to_sheets, projects, transactions, rates)
+            total = result["projects"] + result["transactions"] + result["rates"]
             log_sync("sheets", "success", records_count=total)
             logger.info(
-                "job_sync_sheets: %d проектов, %d транзакций",
+                "job_sync_sheets: %d проектов, %d транзакций, %d курсов",
                 result["projects"],
                 result["transactions"],
+                result["rates"],
             )
 
         except asyncio.CancelledError:
