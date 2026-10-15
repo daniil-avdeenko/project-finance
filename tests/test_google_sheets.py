@@ -4,6 +4,7 @@ from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
+from gspread.exceptions import APIError
 
 from app.integrations import google_sheets as gs
 
@@ -53,6 +54,13 @@ def mock_worksheet():
     ws = MagicMock()
     ws.title = "Test"
     return ws
+
+
+def _make_response(status: int):
+    """Fake httpx.Response с нужным статусом для gspread.APIError."""
+    from httpx import Response
+
+    return Response(status_code=status)
 
 
 # ============================================================
@@ -380,3 +388,44 @@ def test_sync_exchange_rates_empty(_fmt, mock_worksheet):
     assert count == 0
     data_calls = [c for c in mock_worksheet.update.call_args_list if c.args[1].startswith("A2")]
     assert data_calls == []
+
+
+def test_fill_worksheet_retries_on_429(mock_worksheet, monkeypatch):
+    """429 → retry, следующий вызов успешен."""
+    from app.integrations import google_sheets as gs
+
+    mock_worksheet.clear.side_effect = [
+        APIError(_make_response(429)),
+        None,
+    ]
+    monkeypatch.setattr(gs.time, "sleep", lambda _: None)  # ускоряем тест
+
+    gs._fill_worksheet(mock_worksheet, ["A"], [["x"]])
+
+    assert mock_worksheet.clear.call_count == 2
+
+
+def test_fill_worksheet_gives_up_after_max_attempts(mock_worksheet, monkeypatch):
+    """5xx на всех попытках → APIError пробрасывается."""
+    from app.integrations import google_sheets as gs
+
+    mock_worksheet.clear.side_effect = APIError(_make_response(500))
+    monkeypatch.setattr(gs.time, "sleep", lambda _: None)
+
+    with pytest.raises(APIError):
+        gs._fill_worksheet(mock_worksheet, ["A"], [["x"]])
+
+    assert mock_worksheet.clear.call_count == 3
+
+
+def test_fill_worksheet_does_not_retry_on_4xx(mock_worksheet, monkeypatch):
+    """403 → сразу raise, без retry."""
+    from app.integrations import google_sheets as gs
+
+    mock_worksheet.clear.side_effect = APIError(_make_response(403))
+    monkeypatch.setattr(gs.time, "sleep", lambda _: None)
+
+    with pytest.raises(APIError):
+        gs._fill_worksheet(mock_worksheet, ["A"], [["x"]])
+
+    assert mock_worksheet.clear.call_count == 1
