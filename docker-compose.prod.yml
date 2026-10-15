@@ -1,66 +1,63 @@
+# Production-конфиг для VPS.
+# web + scheduler в одном образе, разные команды.
+# Postgres и web в изолированной docker-сети.
 services:
-  # Production-конфиг для VPS.
-  # - web + scheduler в одном образе, разные команды
-  # - Postgres в изолированной сети, порт наружу не открыт
-  # - Лимиты памяти на 4 GB VPS
-  # - Playwright: shm_size 2gb
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    mem_limit: 512m
+    memswap_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [backend]
 
-  services:
-    postgres:
-      image: postgres:16-alpine
-      restart: unless-stopped
-      environment:
-        POSTGRES_USER: ${POSTGRES_USER}
-        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-        POSTGRES_DB: ${POSTGRES_DB}
-      volumes:
-        - postgres_data:/var/lib/postgresql/data
-      mem_limit: 512m
-      memswap_limit: 1g
-      healthcheck:
-        test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
-        interval: 10s
-        timeout: 5s
-        retries: 5
-      networks: [ backend ]
+  web:
+    build: .
+    image: project-finance:latest
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 512m
+    shm_size: 2gb
+    command: ["gunicorn", "run:app", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "60"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks: [backend]
 
-    web:
-      build: .
-      image: project-finance:latest
-      restart: unless-stopped
-      env_file: .env.prod
-      ports:
-        - "127.0.0.1:5000:5000"
-      depends_on:
-        postgres:
-          condition: service_healthy
-      mem_limit: 512m
-      shm_size: 2gb
-      command: [ "gunicorn", "run:app", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "60" ]
-      healthcheck:
-        test: [ "CMD", "curl", "-f", "http://localhost:5000/healthz" ]
-        interval: 30s
-        timeout: 10s
-        retries: 3
-        start_period: 30s
-      networks: [ backend ]
+  scheduler:
+    image: project-finance:latest
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 512m
+    shm_size: 2gb
+    command: ["python", "-m", "scheduler.runner"]
+    networks: [backend]
 
-    scheduler:
-      image: project-finance:latest
-      restart: unless-stopped
-      env_file: .env.prod
-      depends_on:
-        postgres:
-          condition: service_healthy
-      mem_limit: 512m
-      shm_size: 2gb
-      command: [ "python", "-m", "scheduler.runner" ]
-      networks: [ backend ]
+networks:
+  backend:
+    driver: bridge
 
-  networks:
-    backend:
-      driver: bridge
-
-  volumes:
-    postgres_data:
-      driver: local
+volumes:
+  postgres_data:
+    driver: local
