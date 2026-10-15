@@ -45,7 +45,7 @@ from app.models import (
 #   КОНСТАНТЫ
 # ============================================================
 
-APPROX_RATES = {"USD": 84.0, "EUR": 97.0}
+APPROX_RATES = {"USD": 84.0, "EUR": 97.0, "CNY": 11.5}
 
 # Доходные категории, доступные для зарубежных проектов
 INTL_INCOME_CATS = {
@@ -603,7 +603,7 @@ def seed():
         CurrencyRate.query.delete()
         db.session.commit()
 
-        base_rate = {"USD": 84.0, "EUR": 97.0}
+        base_rate = {"USD": 84.0, "EUR": 97.0, "CNY": 11.5}
         months_back_max = 12
 
         for months_back in range(months_back_max + 1):

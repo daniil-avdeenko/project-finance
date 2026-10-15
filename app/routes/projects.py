@@ -120,12 +120,11 @@ def index():
             }
         )
 
-    # Сводка актуальных курсов ЦБ для USD/EUR — один запрос вместо двух
-    header_rates = get_rates_map({"USD", "EUR"})
-    usd_rates = header_rates.get("USD", [])
-    eur_rates = header_rates.get("EUR", [])
-    usd_rate = usd_rates[0] if usd_rates else None
-    eur_rate = eur_rates[0] if eur_rates else None
+    # Сводка актуальных курсов ЦБ — один запрос вместо трёх
+    header_rates = get_rates_map({"USD", "EUR", "CNY"})
+    usd_rate = (header_rates.get("USD") or [None])[0]
+    eur_rate = (header_rates.get("EUR") or [None])[0]
+    cny_rate = (header_rates.get("CNY") or [None])[0]
 
     return render_template(
         "index.html",
@@ -141,6 +140,7 @@ def index():
         period_label=period_label,
         usd_rate=usd_rate,
         eur_rate=eur_rate,
+        cny_rate=cny_rate,
         last_grist_sync=get_last_sync("grist"),
         last_sheets_sync=get_last_sync("sheets"),
         grist_url=(
