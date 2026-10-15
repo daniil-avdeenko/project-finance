@@ -61,6 +61,9 @@ def test_create_transaction_via_route(auth_client, app):
         category_id = category.id
 
     # Отправляем POST-запрос на создание транзакции
+    # Дата в прошлом, но ПОСЛЕ создания проекта — иначе валидатор её отсечёт
+    valid_date = (datetime.now(UTC) - timedelta(days=5)).strftime("%Y-%m-%dT%H:%M")
+
     response = auth_client.post(
         "/transactions/create",
         data={
@@ -70,7 +73,7 @@ def test_create_transaction_via_route(auth_client, app):
             "amount": "50000",
             "currency": "RUB",
             "description": "Тестовая транзакция",
-            "date": "2026-09-12T14:30",
+            "date": valid_date,
         },
         follow_redirects=True,
     )
