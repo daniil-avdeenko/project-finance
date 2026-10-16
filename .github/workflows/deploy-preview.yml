@@ -1,0 +1,72 @@
+name: Deploy Preview
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: preview-webproject-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: Preview build & smoke
+    # GitHub-hosted: PR может прийти из форка, на self-hosted пускать чужой код нельзя.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker compose -f docker-compose.prod.yml build web
+
+      - name: Start postgres and wait healthy
+        env:
+          POSTGRES_USER: finance
+          POSTGRES_PASSWORD: ci-test-password
+          POSTGRES_DB: project_finance
+        run: |
+          set -e
+          docker compose -f docker-compose.prod.yml up -d postgres
+
+          for i in $(seq 1 30); do
+            status=$(docker inspect --format='{{.State.Health.Status}}' \
+              project-finance-postgres-1 2>/dev/null || echo "missing")
+            [ "$status" = "healthy" ] && break
+            sleep 2
+          done
+          [ "$status" = "healthy" ] || {
+            docker compose -f docker-compose.prod.yml logs postgres
+            exit 1
+          }
+
+      - name: Start web and wait healthy
+        env:
+          POSTGRES_USER: finance
+          POSTGRES_PASSWORD: ci-test-password
+          POSTGRES_DB: project_finance
+        run: |
+          set -e
+          docker compose -f docker-compose.prod.yml up -d web
+
+          for i in $(seq 1 30); do
+            status=$(docker inspect --format='{{.State.Health.Status}}' \
+              project-finance-web-1 2>/dev/null || echo "missing")
+            [ "$status" = "healthy" ] && break
+            sleep 2
+          done
+          [ "$status" = "healthy" ] || {
+            docker compose -f docker-compose.prod.yml logs web
+            exit 1
+          }
+
+      - name: Smoke test
+        run: |
+          docker compose -f docker-compose.prod.yml exec -T web \
+            curl -fsS http://localhost:5000/healthz
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -f docker-compose.prod.yml down -v --remove-orphans
