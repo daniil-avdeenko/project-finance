@@ -105,7 +105,7 @@ flowchart TB
 git clone https://github.com/daniil-avdeenko/project-finance.git
 cd project-finance
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 playwright install chromium
 cp .env.example .env                                 # заполнить переменные
 flask db upgrade && python seed.py
@@ -205,6 +205,26 @@ Swagger UI: `/api/v1/docs` (за `@login_required`).
 - **Branch protection:** PR обязателен, статус-чеки CI должны быть зелёными,
   force-push и удаление `main` запрещены.
 - **Conventional Commits** и feature-ветки — читаемая история.
+
+## Управление зависимостями
+
+Зависимости разделены на prod и dev, lock-файлы генерируются через `pip-tools`.
+
+| Файл | Назначение |
+|---|---|
+| `requirements.in` | Прямые prod-зависимости без версий |
+| `requirements-dev.in` | Prod + dev-tooling (pytest, ruff, mypy, pre-commit) |
+| `requirements.txt` | Lock-файл prod (в Docker-образ, в prod) |
+| `requirements-dev.txt` | Lock-файл dev (локально, в CI) |
+
+**Docker-образ** ставит только `requirements.txt` — без pytest, ruff, mypy и их транзитивных зависимостей. Это сокращает размер образа и поверхность атаки.
+
+**Обновление lock-файлов.** `pip-compile` запускается в Linux-контейнере (`scripts/requirements-compile.Dockerfile`) — это гарантирует, что linux-only пакеты и маркеры платформы резолвятся корректно, независимо от ОС разработчика.
+
+```bash
+./scripts/compile-requirements.sh      # Linux / macOS / Git Bash
+.\scripts\compile-requirements.ps1     # Windows PowerShell
+```
 
 ## CLI-команды
 
