@@ -17,3 +17,21 @@ def test_make_csv_response():
     assert "charset=utf-8" in response.content_type
     assert "attachment" in response.headers["Content-Disposition"]
     assert response.data.startswith(b"\xef\xbb\xbf")
+
+
+def test_is_safe_url_rejects_scheme_downgrade(app):
+    """С https на http с тем же хостом — небезопасно, это downgrade-атака."""
+    from flask import request
+
+    from app.helpers import is_safe_url
+
+    with app.test_request_context(base_url="https://projectfin.com.ru/"):
+        assert not is_safe_url("http://projectfin.com.ru/dashboard")
+
+
+def test_is_safe_url_accepts_same_scheme(app):
+    """С https на https — безопасно."""
+    from app.helpers import is_safe_url
+
+    with app.test_request_context(base_url="https://projectfin.com.ru/"):
+        assert is_safe_url("https://projectfin.com.ru/dashboard")
