@@ -154,3 +154,10 @@ def test_sanitize_empty_string():
     from app.security import sanitize_secrets
 
     assert sanitize_secrets("") == ""
+
+
+def test_proxy_fix_wraps_wsgi_app(app):
+    """ProxyFix обёрнут вокруг wsgi_app — иначе X-Forwarded-* не применяются."""
+    from werkzeug.middleware.proxy_fix import ProxyFix
+
+    assert isinstance(app.wsgi_app, ProxyFix)
