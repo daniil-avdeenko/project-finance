@@ -106,3 +106,24 @@ def test_admin_can_access_create_category(auth_client):
     """Админ может зайти на /income-categories/create."""
     response = auth_client.get("/income-categories/create")
     assert response.status_code == 200
+
+
+def test_login_wrong_password_preserves_next(app):
+    """При неверном пароле next-параметр не теряется — возврат на ту же форму."""
+    with app.app_context():
+        user = User(username="test_user", role="user")
+        user.set_password("correct_password")
+        _db.session.add(user)
+        _db.session.commit()
+
+    client = app.test_client()
+    response = client.post(
+        "/login?next=/projects/5",
+        data={"username": "test_user", "password": "wrong"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    assert "/login" in response.location
+    assert "next=" in response.location
+    assert "%2Fprojects%2F5" in response.location or "/projects/5" in response.location
