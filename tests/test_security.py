@@ -42,6 +42,7 @@ def test_security_headers_present(client):
     assert "strict-origin-when-cross-origin" in response.headers["Referrer-Policy"]
     assert "geolocation=()" in response.headers["Permissions-Policy"]
     assert "default-src 'self'" in response.headers["Content-Security-Policy"]
+    assert "upgrade-insecure-requests" in response.headers["Content-Security-Policy"]
 
 
 def test_headers_on_login_page(client):
