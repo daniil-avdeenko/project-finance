@@ -13,6 +13,7 @@ from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import joinedload
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.logging_config import setup_logging
 from app.security import register_security_headers
@@ -45,6 +46,8 @@ login_manager = LoginManager()
 
 def create_app():
     app = Flask(__name__)
+
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     # Конфигурация
     flask_env = os.getenv("FLASK_ENV", "development")
