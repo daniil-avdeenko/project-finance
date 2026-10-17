@@ -29,13 +29,17 @@ def parse_ids_from_string(ids_str):
 
 def is_safe_url(target: str | None) -> bool:
     """
-    Проверяет, что URL ведёт на тот же хост — защита от Open Redirect.
+    Проверяет, что URL ведёт на тот же хост и ту же схему.
+
+    Защита от Open Redirect и от downgrade-атак: переход с https на http
+    позволяет перехватить cookies на промежуточном узле, даже если хост
+    совпадает.
     """
     if not target:
         return False
     ref_url = urlparse(request.host_url)
     test_url = urlparse(urljoin(request.host_url, target))
-    return test_url.scheme in ("http", "https") and ref_url.netloc == test_url.netloc
+    return test_url.scheme == ref_url.scheme and ref_url.netloc == test_url.netloc
 
 
 def get_next_url(default: str) -> str:
