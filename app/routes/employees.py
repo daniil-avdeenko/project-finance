@@ -227,7 +227,9 @@ def employee_edit(employee_id):
 
         try:
             # Удаляем старые привязки и создаём новые
-            EmployeeProject.query.filter_by(employee_id=employee.id).delete()
+            EmployeeProject.query.filter_by(employee_id=employee.id).delete(
+                synchronize_session=False
+            )
 
             for pr in project_roles:
                 project = Project.active().filter_by(id=pr["project_id"]).first()
