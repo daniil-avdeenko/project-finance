@@ -1,18 +1,20 @@
 # 💰 Финансы проектов
 
 [![CI](https://github.com/daniil-avdeenko/project-finance/actions/workflows/ci.yml/badge.svg)](https://github.com/daniil-avdeenko/project-finance/actions/workflows/ci.yml)
+[![Deploy](https://github.com/daniil-avdeenko/project-finance/actions/workflows/deploy.yml/badge.svg)](https://github.com/daniil-avdeenko/project-finance/actions/workflows/deploy.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Flask-приложение для учёта доходов и расходов по проектам: CRUD,
 аналитика рентабельности, экспорт в CSV/Excel, синхронизация с Google Sheets,
 event-driven уведомления в Telegram, планировщик фоновых задач.
 
-**Live demo:** https://projectfin.com.ru/ — логин `admin` / `admin`
+**Live demo:** https://projectfin.com.ru/ — логин `admin` / `admin` (демонстрационные учётные данные)
 
 **Связанный проект:** [FastApi-Finance-Agent](https://github.com/daniil-avdeenko/FastApi-Finance-Agent) —
-Telegram AI-агент, который ходит в публичный REST API этого приложения
-и отвечает на вопросы о финансах на естественном языке.
+Telegram AI-агент на LangGraph + GigaChat, который ходит в публичный REST API
+этого приложения и отвечает на вопросы о финансах на естественном языке.
 
 **Скриншоты:**
 
@@ -24,28 +26,31 @@ Telegram AI-агент, который ходит в публичный REST API
 |---|---|
 | ![Транзакции](docs/screenshots/transactions.png) | ![Telegram](docs/screenshots/telegram.png) |
 
-**Ручная синхронизация интеграций из UI:**
-
-![Sync buttons](docs/screenshots/sync-buttons.png)
-
 ## Возможности
 
-- **CRUD** проектов, сотрудников (с ролями на проектах), категорий и транзакций. Роли: админ / пользователь.
+- **CRUD** проектов, сотрудников (с ролями на проектах), категорий и транзакций. Роли: `admin` / `user`.
 - **Дашборд** с доходом, расходом, прибылью и рентабельностью за выбранный период.
-- **Мультивалютность.** Транзакции в RUB / USD / EUR конвертируются в рубли по актуальному курсу ЦБ на дату.
-- *- **Курсы ЦБ** парсятся с `cbr.ru` через Playwright (обход DDoS-Guard) и сохраняются в БД.
-- **Экспорт** в CSV, XLSX (openpyxl) и синхронизация с Google Sheets: проекты, транзакции и последние курсы валют, валидация полей.
-- **Event-driven уведомления в Telegram** через очередь событий в БД и отдельный процесс-планировщик.
+- **Мультивалютность.** Транзакции в RUB / USD / EUR / CNY конвертируются в рубли по курсу ЦБ на дату транзакции.
+- **Курсы ЦБ** парсятся с `cbr.ru` через Playwright (с обходом DDoS-Guard) и сохраняются в БД.
+- **Экспорт** в CSV, XLSX (openpyxl) и синхронизация с Google Sheets: проекты, транзакции и последние курсы валют, с валидацией полей.
+- **Event-driven уведомления** в Telegram через очередь событий в БД и отдельный процесс-планировщик.
 - **Публичный REST API** `/api/v1/*` — используется внешним Telegram-агентом.
 - **Ручная синхронизация** из UI с отображением статуса и времени последней синхронизации.
-- **Security:** rate limiting на логин, security headers, sanitize секретов в логах, fail-fast на `SECRET_KEY`.
+- **Security:** rate limiting на логин, HTTP security headers, CSP с `upgrade-insecure-requests`, sanitize секретов в логах, fail-fast на `SECRET_KEY`, валидация `next`-редиректов, `ProxyFix` для корректного определения схемы и IP за reverse proxy.
 
 ## Архитектура
 
 ```mermaid
 flowchart TB
-    subgraph VPS["VPS (Ubuntu 22.04)"]
-        Nginx[Nginx + Let's Encrypt]
+    User([Пользователь]) -->|HTTPS| RU[RU-прокси]
+    TG([Telegram]) -->|webhook| NL
+
+    subgraph Proxy["RU-прокси"]
+        RU
+    end
+
+    subgraph Servers["Основная инфраструктура"]
+        NL[Nginx + Let's Encrypt]
         subgraph Finance["project-finance"]
             Flask[Flask web]
             Sched[Scheduler]
@@ -53,17 +58,15 @@ flowchart TB
         end
         subgraph Agent["FastApi-Finance-Agent"]
             API[FastAPI]
-            Bot[Telegram webhook]
             DB2[(PostgreSQL)]
         end
     end
 
-    User([Пользователь]) -->|HTTPS| Nginx
-    TG([Telegram]) -->|webhook| Nginx
-    Nginx --> Flask
-    Nginx --> API
+    RU -->|HTTPS| NL
+    NL --> Flask
+    NL --> API
     API -->|httpx /api/v1/*| Flask
-        Flask --> DB1
+    Flask --> DB1
     DB1 -.after INSERT.-> Events[event_log]
     Events --> Sched
     Sched -->|digest| TG
@@ -72,30 +75,28 @@ flowchart TB
     API --> DB2
 ```
 
-**Ключевые принципы:**
+**Ключевые решения:**
 
-- **Разделение процессов.** Web и scheduler — два независимых контейнера в одном деплое. Scheduler запускается отдельно от Flask, чтобы при нескольких воркерах gunicorn задачи не дублировались.
-- **Event-driven.** Flask не вызывает Telegram напрямую — пишет событие в `event_log`, scheduler раз в 30 секунд выгребает pending и отправляет digest. Отказ Telegram не блокирует UX, события не теряются.
-- **Идемпотентность.** Google Sheets перезаписывается целиком при каждом запуске синхронизации. Повторный запуск обновляет, а не дублирует.
-- **Устойчивость к сетевым сбоям.** Sanitize трейсбеков перед отправкой в Telegram, graceful degradation при отказе внешних сервисов.
-- **Развязка сервисов.** Агент общается с приложением только через публичный API `/api/v1/*`. Нет shared-credentials к БД, можно менять и деплоить проекты независимо.
-- **Гибкая конфигурация секретов.** Google credentials читаются из `GOOGLE_CREDENTIALS_B64` (base64 в env) с fallback на файл — работает и на VPS, и локально.
+- **Разделение процессов.** Web и scheduler — два независимых контейнера. Scheduler запускается отдельно от Flask, чтобы фоновые задачи не дублировались при нескольких воркерах gunicorn.
+- **Event-driven.** Flask не вызывает Telegram напрямую — пишет событие в `event_log`. Scheduler раз в 30 секунд собирает pending-события и отправляет digest. Отказ Telegram не блокирует UX, события не теряются.
+- **Идемпотентность.** Google Sheets перезаписывается целиком при каждой синхронизации, с retry на 429/5xx. Повторный запуск обновляет, а не дублирует.
+- **Развязка сервисов.** Агент общается с приложением только через публичный API `/api/v1/*`. Нет shared-credentials к БД — проекты можно менять и деплоить независимо.
+- **Устранение N+1.** Курсы ЦБ загружаются одним запросом (`get_rates_map`) и переиспользуются через `ProjectStatsService` — вместо запроса курса на каждую транзакцию.
 
 ## Стек
 
 | Слой | Технологии |
 |---|---|
-| Backend | Python 3.12, Flask, SQLAlchemy, Flask-Login, WTForms |
+| Backend | Python 3.12, Flask, SQLAlchemy 2.0, Flask-Login, WTForms |
 | БД | PostgreSQL 16 (prod), SQLite (dev) |
-| HTTP | httpx (async), requests |
+| HTTP / async | httpx, APScheduler |
 | Browser | Playwright (Chromium) |
-| Планировщик | APScheduler (AsyncIOScheduler) |
-| Интеграции | Google Sheets API, Telegram Bot API |
+| Интеграции | Google Sheets API, Telegram Bot API, ЦБ РФ |
 | UI | Bootstrap 5, Chart.js, Font Awesome |
 | Экспорт | CSV (stdlib), XLSX (openpyxl) |
 | Тесты | pytest, pytest-asyncio, pytest-cov, respx |
 | Качество | ruff, mypy, pre-commit, gitleaks |
-| Инфраструктура | Docker Compose, Nginx, Let's Encrypt, VPS (Ubuntu 22.04) |
+| Инфраструктура | Docker, Nginx, Let's Encrypt |
 
 ## Быстрый старт
 
@@ -104,15 +105,19 @@ flowchart TB
 ```bash
 git clone https://github.com/daniil-avdeenko/project-finance.git
 cd project-finance
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements-dev.txt
+
+python -m venv .venv
+source .venv/bin/activate              # Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt    # prod + dev-tooling
+
+cp .env.example .env                   # заполнить токены интеграций или оставить пустыми для минимального запуска
+flask db upgrade && python seed.py     # миграции + тестовые данные
+
 playwright install chromium
-cp .env.example .env                                 # заполнить переменные
-flask db upgrade && python seed.py
-python run.py                                        # http://127.0.0.1:5000
+python run.py                          # http://127.0.0.1:5000
 ```
 
-**Планировщик — отдельным терминалом:**
+**Планировщик** (отдельный терминал):
 
 ```bash
 python -m scheduler.runner
@@ -121,62 +126,10 @@ python -m scheduler.runner
 ### Docker (dev)
 
 ```bash
-docker compose build
 docker compose up -d
 ```
 
-Поднимутся два контейнера: `pf-web` (порт 5000) и `pf-scheduler` (healthcheck на 8080).
-Оба используют один образ, но разные команды запуска.
-
-## Развёртывание на VPS
-
-Production — один VPS (Ubuntu 22.04), Nginx как
-reverse proxy, Let's Encrypt для HTTPS, Docker Compose для сервисов.
-
-### Структура
-
-- **Nginx** — терминирует SSL, проксирует:
-  - `projectfin.com.ru` → `127.0.0.1:5000` (Flask)
-  - `agent.projectfin.com.ru` → `127.0.0.1:8000` (FastApi-Finance-Agent)
-- **Flask + Scheduler** — контейнеры `web` и `scheduler`, gunicorn 1 worker.
-- **PostgreSQL 16** — изолированная docker-сеть, порт наружу не открыт, лимит 512 MB.
-
-### Запуск
-
-```bash
-cd /opt/project-finance
-docker compose -f docker-compose.prod.yml build
-docker compose -f docker-compose.prod.yml up -d postgres
-sleep 15
-docker compose -f docker-compose.prod.yml run --rm web flask db upgrade
-docker compose -f docker-compose.prod.yml run --rm web python seed.py
-docker compose -f docker-compose.prod.yml up -d
-```
-
-### Переменные окружения
-
-Секреты хранятся в `/opt/project-finance/.env.prod` (не в репозитории).
-Шаблон — `.env.example`. Обязательные:
-
-```ini
-FLASK_ENV=production
-SECRET_KEY=<32 байта hex>
-POSTGRES_USER=finance
-POSTGRES_PASSWORD=<hex>
-POSTGRES_DB=project_finance
-DATABASE_URL=postgresql://finance:<pass>@postgres:5432/project_finance
-
-TELEGRAM_BOT_TOKEN=<токен от @BotFather>
-TELEGRAM_CHAT_ID=<ID чата>
-
-GOOGLE_CREDENTIALS_B64=<credentials.json в base64>
-GOOGLE_SPREADSHEET_ID=<ID таблицы>
-
-EVENTS_ENABLED=true
-RATELIMIT_ENABLED=true
-HEALTHCHECK_ENABLED=true
-HEALTHCHECK_PORT=8080
-```
+Поднимаются `pf-web` (порт 5000) и `pf-scheduler` (healthcheck на 8080). Один образ, разные команды запуска.
 
 ## Публичный API
 
@@ -191,20 +144,17 @@ REST API `/api/v1/*` — используется Telegram-агентом
 | GET | `/api/v1/projects` | Список проектов |
 | GET | `/api/v1/projects/<id>` | Детали проекта + транзакции |
 | GET | `/api/v1/transactions` | Транзакции с фильтрами и пагинацией |
-| GET | `/api/v1/currencies` | Курсы валют ЦБ |
+| GET | `/api/v1/currencies` | Курсы валют ЦБ (USD, EUR, CNY) |
 
 Swagger UI: `/api/v1/docs` (за `@login_required`).
 
-## Качество кода и CI/CD
+## Тестирование и CI/CD
 
-- **Pre-commit:** ruff (линтер + форматтер), mypy, gitleaks, conventional-commit —
-  запускаются локально на каждом коммите.
-- **GitHub Actions** (`.github/workflows/ci.yml`): на каждый push в `main` и PR
-  два параллельных job'а — `pytest` (245+ тестов, coverage 88%) и `ruff check` +
-  `ruff format --check`. Версия ruff закреплена для совпадения с pre-commit.
-- **Branch protection:** PR обязателен, статус-чеки CI должны быть зелёными,
-  force-push и удаление `main` запрещены.
-- **Conventional Commits** и feature-ветки — читаемая история.
+- **`pytest`** — 255+ тестов, покрытие 88%. Unit (формы, хелперы, сервисы) + integration (роуты, API, БД).
+- **Pre-commit** — ruff (линтер + форматтер), mypy, gitleaks, conventional-commit.
+- **GitHub Actions** — три параллельных job'а на PR: `Tests`, `Lint & Type Check` (ruff + mypy), `Secrets scan` (gitleaks).
+- **Deploy Preview** — на каждый PR - GitHub-hosted runner. Собирает изолированный стек, гоняет smoke-тест на `/healthz`.
+- **Deploy** (prod) — после merge в `main` (через `workflow_run` после зелёного CI), **self-hosted runner на сервере**. Код уже прошёл ревью и CI, безопасно деплоить. SSH-порт наружу не открыт — runner сам опрашивает GitHub.
 
 ## Управление зависимостями
 
@@ -214,10 +164,10 @@ Swagger UI: `/api/v1/docs` (за `@login_required`).
 |---|---|
 | `requirements.in` | Прямые prod-зависимости без версий |
 | `requirements-dev.in` | Prod + dev-tooling (pytest, ruff, mypy, pre-commit) |
-| `requirements.txt` | Lock-файл prod (в Docker-образ, в prod) |
+| `requirements.txt` | Lock-файл prod (в Docker-образ) |
 | `requirements-dev.txt` | Lock-файл dev (локально, в CI) |
 
-**Docker-образ** ставит только `requirements.txt` — без pytest, ruff, mypy и их транзитивных зависимостей. Это сокращает размер образа и поверхность атаки.
+**Docker-образ** ставит только `requirements.txt` — без pytest, ruff, mypy и их транзитивных зависимостей.
 
 **Обновление lock-файлов.** `pip-compile` запускается в Linux-контейнере (`scripts/requirements-compile.Dockerfile`) — это гарантирует, что linux-only пакеты и маркеры платформы резолвятся корректно, независимо от ОС разработчика.
 
@@ -225,25 +175,6 @@ Swagger UI: `/api/v1/docs` (за `@login_required`).
 ./scripts/compile-requirements.sh      # Linux / macOS / Git Bash
 .\scripts\compile-requirements.ps1     # Windows PowerShell
 ```
-
-## CLI-команды
-
-```bash
-flask sync-sheets         # Синхронизация с Google Sheets
-flask scrape-cbr          # Парсинг курсов ЦБ (Playwright)
-flask send-test-message   # Тест Telegram-уведомлений
-```
-
-## Роли и seed-данные
-
-После `python seed.py` создаются 6 проектов, 30+ сотрудников с ролями на проектах,
-и ~470 транзакций в RUB/USD/EUR.
-
-- **Администратор:** `admin` / `admin` — полный доступ, ручная синхронизация, экспорт.
-- **Пользователь:** `user` / `user` — просмотр, создание транзакций, экспорт.
-
-> Данные в публичном демо — сгенерированные. Все проекты, компании и
-> сотрудники вымышлены.
 
 ## Структура
 
@@ -267,7 +198,7 @@ app/
 └── security.py                # HTTP headers + sanitize секретов
 
 scheduler/
-├── jobs.py                    # process_events, sync_grist, scrape_cbr, sync_sheets
+├── jobs.py                    # process_events, healthcheck, scrape_cbr, sync_sheets
 └── runner.py                  # точка входа APScheduler + healthcheck на :8080
 
 migrations/versions/            # Alembic
@@ -278,22 +209,11 @@ Dockerfile, docker-compose.yml, docker-compose.prod.yml
 
 ## Что планируется улучшить
 
-- **Batch API для Google Sheets.** Сейчас синхронизация делает ~8 отдельных
-  HTTP-запросов (clear + update + formatting на каждый лист). `batchUpdate`
-  сожмёт их до 1–2 запросов, экономия ещё 3–5 секунд на синхронизацию.
-- **Uptime-мониторинг.** Uptime Kuma в отдельном контейнере: пинг `/healthz`
-  каждую минуту, алерты в Telegram.
-- **Бэкапы PostgreSQL.** Ежедневный `pg_dump` с ротацией (30 дней) и
-  выгрузкой в S3-совместимое хранилище.
-- **CI/CD на VPS.** GitHub Actions → SSH → `docker compose pull && up -d`.
-- **Гибкая система ролей и audit log.** Сейчас `admin` / `user` покрывают
-  сценарии двух пользователей. С ростом команды понадобятся роли с
-  разными правами и история действий.
-- **Интерактивный Telegram-бот.** Сейчас бот только отправляет уведомления.
-  Полезно добавить команды:
-  - `/status` — время последней синхронизации, количество проектов и транзакций, курсы валют
-  - `/sync` — ручной запуск синхронизации с Grist и Sheets из чата
-  - `/report` — сводка за месяц по проектам
+- **Redis для кэша курсов.** Сейчас `get_rates_map` бьёт в БД на каждый HTTP-запрос. Кэш на 5 минут с инвалидацией при `upsert_rates` разгрузит дашборд и API.
+- **Устранение N+1 в экспортерах.** `build_projects_workbook`, `sync_projects_to_sheets`, `export_projects_csv` дёргают property моделей в цикле — 4N+ запросов. Фикс — предзагрузка через `ProjectStatsService`, как уже сделано в `build_transactions_workbook`.
+- **Batch API для Google Sheets.** Синхронизация делает ~8 HTTP-запросов, `batchUpdate` сожмёт до 1–2.
+- **Response schemas в OpenAPI.** Swagger UI показывает эндпоинты, но не структуру ответа.
+- **Uptime-мониторинг и бэкапы PostgreSQL.** Uptime Kuma + `pg_dump` с ротацией в S3.
 
 ## Лицензия
 
