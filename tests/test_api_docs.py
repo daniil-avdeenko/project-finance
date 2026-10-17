@@ -80,3 +80,26 @@ def test_redoc_page_renders(auth_client):
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert "redoc" in html.lower()
+
+
+def test_openapi_servers_url_respects_forwarded_proto(auth_client):
+    """За прокси Swagger показывает https, а не http — иначе Try it out уйдёт в редирект-цикл."""
+    response = auth_client.get(
+        "/api/v1/openapi.json",
+        headers={
+            "X-Forwarded-Proto": "https",
+            "X-Forwarded-Host": "projectfin.com.ru",
+        },
+    )
+
+    assert response.status_code == 200
+    spec = response.get_json()
+    assert spec["servers"][0]["url"] == "https://projectfin.com.ru"
+
+
+def test_openapi_servers_url_defaults_to_http_locally(auth_client):
+    """Без X-Forwarded-Proto — http://127.0.0.1, чтобы локально тоже работало."""
+    response = auth_client.get("/api/v1/openapi.json")
+
+    spec = response.get_json()
+    assert spec["servers"][0]["url"].startswith("http://")
