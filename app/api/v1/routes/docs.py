@@ -27,7 +27,11 @@ def api_openapi_json():
     """OpenAPI-спецификация в JSON."""
     spec = _build_spec_cached()
     # Подставляем актуальный host при каждом запросе — не кэшируем.
-    spec = {**spec, "servers": [{"url": f"http://{request.host}", "description": "Current"}]}
+    # request.host_url уже учитывает X-Forwarded-Proto через ProxyFix.
+    spec = {
+        **spec,
+        "servers": [{"url": request.host_url.rstrip("/"), "description": "Current"}],
+    }
     return jsonify(spec)
 
 
