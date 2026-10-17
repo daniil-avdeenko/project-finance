@@ -19,7 +19,8 @@ CSP = (
     "connect-src 'self'; "
     "frame-ancestors 'self'; "
     "base-uri 'self'; "
-    "form-action 'self'"
+    "form-action 'self'; "
+    "upgrade-insecure-requests"
 )
 
 
