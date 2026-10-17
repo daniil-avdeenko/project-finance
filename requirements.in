@@ -1,0 +1,37 @@
+# Web framework
+Flask
+
+# WSGI server
+gunicorn
+
+# Database
+SQLAlchemy
+Flask-SQLAlchemy
+Flask-Migrate
+alembic
+psycopg[binary]
+
+# Auth & Forms
+Flask-Login
+Flask-WTF
+WTForms
+
+# Rate limiting
+Flask-Limiter
+
+# HTTP & Async
+httpx
+aiohttp
+APScheduler
+
+# Integrations
+gspread
+gspread-formatting
+google-auth
+google-auth-oauthlib
+openpyxl
+playwright
+
+# Utilities
+python-dotenv
+tzdata
