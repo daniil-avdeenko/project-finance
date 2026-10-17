@@ -203,7 +203,7 @@ requests-oauthlib==2.0.0
     # via google-auth-oauthlib
 respx==0.23.1
     # via -r requirements-dev.in
-ruff==0.17.1
+ruff==0.8.4
     # via -r requirements-dev.in
 sqlalchemy==2.1.5
     # via
