@@ -12,6 +12,7 @@ from app.forms import TransactionForm
 from app.helpers import get_next_url, make_csv_response, safe_redirect
 from app.models import ExpenseCategory, IncomeCategory, Project, Transaction
 from app.routes.blueprint import main_bp
+from app.services.category_service import get_category_dicts
 from app.services.currency_service import get_rates_map
 from app.services.excel_export import build_transactions_workbook, make_xlsx_response
 
@@ -102,8 +103,7 @@ def transactions_list():
     )
     transactions = pagination.items
 
-    income_categories = {c.id: c.name for c in IncomeCategory.query.all()}
-    expense_categories = {c.id: c.name for c in ExpenseCategory.query.all()}
+    income_categories, expense_categories = get_category_dicts()
 
     all_projects_for_filter = Project.active().order_by(Project.name).all()
     currencies_for_filter = ["RUB", "USD", "EUR"]
