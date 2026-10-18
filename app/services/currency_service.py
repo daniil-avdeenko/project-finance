@@ -1,20 +1,39 @@
 """
 Сервис работы с курсами валют: сохранение в БД + конвертация.
 
-КУрсы пишутся из job_scrape_cbr (Playwright → БД → Grist).
+Курсы пишутся из job_scrape_cbr (Playwright → БД).
+get_rates_map кэширует результат в Redis (TTL 5 минут),
+если Redis доступен — иначе работает напрямую с БД.
 """
 
+import json
 import logging
-from datetime import date
+from dataclasses import asdict, dataclass
+from datetime import date, timedelta
 
 from sqlalchemy import select
 
 from app import db
+from app.cache import get_cache
 from app.models import CurrencyRate
 
 logger = logging.getLogger(__name__)
 
 BASE_CURRENCY = "RUB"
+RATES_CACHE_TTL = timedelta(hours=1)
+RATES_CACHE_PREFIX = "rates_map:"
+
+
+@dataclass(frozen=True)
+class CachedRate:
+    """
+    Лёгкая копия CurrencyRate для кэша.
+    """
+
+    code: str
+    rate_date: date
+    nominal: int
+    rate_rub: float
 
 
 def upsert_rates(rates: list) -> dict[str, int]:
@@ -59,8 +78,9 @@ def get_rate(code: str, on_date: date | None = None) -> CurrencyRate | None:
     """
     Возвращает курс валюты на дату или ближайшую предыдущую.
 
+    Прямой запрос в БД, без кэша. Используется в convert_to_rub (для property
+    Transaction.amount_rub), где кэширование на уровне одной транзакции не окупается.
     Если on_date=None — берётся последний доступный курс.
-    Возвращает None, если курса нет вообще (например, для RUB).
     """
     if on_date is None:
         stmt = (
@@ -92,23 +112,44 @@ def convert_to_rub(amount: float, currency: str, on_date: date | None = None) ->
         logger.warning("Курс %s на %s не найден — сумма не сконвертирована", currency, on_date)
         return amount
 
-    # rate_rub указан за `nominal` единиц
     return round(amount * rate.rate_rub / rate.nominal, 2)
 
 
-def get_rates_map(codes: set[str]) -> dict[str, list[CurrencyRate]]:
+def get_rates_map(codes: set[str]) -> dict[str, list[CachedRate]]:
     """
-    Загружает все курсы для указанных кодов одним SQL-запросом.
+    Загружает все курсы для указанных кодов.
 
-    Возвращает {code: [CurrencyRate, ...]}, отсортированные по rate_date desc.
-    Используется в ProjectStatsService для избежания N+1: вместо
-    запроса курса на каждую транзакцию — один запрос на всю страницу.
+    Сначала проверяет кэш Redis (TTL 5 минут). При промахе делает SQL-запрос
+    и сохраняет результат. При отсутствии Redis работает напрямую с БД.
 
-    RUB исключается — для него конвертация не нужна.
+    Возвращает {code: [CachedRate, ...]}, отсортированные по rate_date desc.
     """
     codes = {c for c in codes if c and c != BASE_CURRENCY}
     if not codes:
         return {}
+
+    cache_key = RATES_CACHE_PREFIX + ",".join(sorted(codes))
+    cache = get_cache()
+
+    if cache:
+        try:
+            cached = cache.get(cache_key)
+            if cached:
+                parsed = json.loads(cached)
+                return {
+                    code: [
+                        CachedRate(
+                            code=r["code"],
+                            rate_date=date.fromisoformat(r["rate_date"]),
+                            nominal=r["nominal"],
+                            rate_rub=r["rate_rub"],
+                        )
+                        for r in rates
+                    ]
+                    for code, rates in parsed.items()
+                }
+        except Exception as e:
+            logger.warning("Ошибка чтения из Redis (%s): %s", cache_key, e)
 
     stmt = (
         select(CurrencyRate)
@@ -116,24 +157,49 @@ def get_rates_map(codes: set[str]) -> dict[str, list[CurrencyRate]]:
         .order_by(CurrencyRate.code, CurrencyRate.rate_date.desc())
     )
 
-    result: dict[str, list[CurrencyRate]] = {}
+    result: dict[str, list[CachedRate]] = {}
     for rate in db.session.execute(stmt).scalars():
-        result.setdefault(rate.code, []).append(rate)
+        result.setdefault(rate.code, []).append(
+            CachedRate(
+                code=rate.code,
+                rate_date=rate.rate_date,
+                nominal=rate.nominal,
+                rate_rub=rate.rate_rub,
+            )
+        )
+
+    if cache and result:
+        try:
+            serialized = {code: [asdict(r) for r in rates] for code, rates in result.items()}
+            cache.setex(
+                cache_key,
+                RATES_CACHE_TTL,
+                json.dumps(serialized, default=str),
+            )
+        except Exception as e:
+            logger.warning("Ошибка записи в Redis (%s): %s", cache_key, e)
 
     return result
+
+
+def get_latest_rates(codes: set[str]) -> list[CachedRate]:
+    """
+    Возвращает последний доступный курс для каждого из кодов.
+    """
+    rates_map = get_rates_map(codes)
+    return [rates_map[code][0] for code in sorted(rates_map) if rates_map[code]]
 
 
 def convert_with_rates(
     amount: float,
     currency: str,
     on_date: date | None,
-    rates_map: dict[str, list[CurrencyRate]],
+    rates_map: dict[str, list[CachedRate]],
 ) -> float:
     """
     Конвертирует сумму в RUB, используя предзагруженный rates_map.
 
-    Никаких SQL-запросов — все данные уже в памяти.
-    Логика идентична convert_to_rub, но курс берётся из кеша.
+    Без SQL-запросов — все данные уже в памяти или в кэше.
     """
     if not currency or currency == BASE_CURRENCY:
         return amount
@@ -143,8 +209,7 @@ def convert_with_rates(
         logger.warning("Курс %s не найден в кеше", currency)
         return amount
 
-    # rates отсортированы по rate_date desc → первый ≤ on_date
-    rate: CurrencyRate | None = None
+    rate: CachedRate | None = None
     if on_date is None:
         rate = rates[0]
     else:
@@ -158,14 +223,3 @@ def convert_with_rates(
         return amount
 
     return round(amount * rate.rate_rub / rate.nominal, 2)
-
-
-def get_latest_rates(codes: set[str]) -> list[CurrencyRate]:
-    """
-    Последний доступный курс для каждого из кодов.
-
-    Используется для синхронизации курсов в Google Sheets.
-    Порядок — по алфавиту кода, RUB игнорируется.
-    """
-    rates_map = get_rates_map(codes)
-    return [rates_map[code][0] for code in sorted(rates_map) if rates_map[code]]

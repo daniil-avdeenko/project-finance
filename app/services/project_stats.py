@@ -8,8 +8,7 @@ get_rates_map на всю страницу.
 
 from dataclasses import dataclass
 
-from app.models import CurrencyRate
-from app.services.currency_service import convert_with_rates
+from app.services.currency_service import CachedRate, convert_with_rates
 
 
 @dataclass(frozen=True)
@@ -28,7 +27,7 @@ class ProjectStatsService:
     @staticmethod
     def calculate(
         transactions: list,
-        rates_map: dict[str, list[CurrencyRate]],
+        rates_map: dict[str, list[CachedRate]],
     ) -> ProjectStats:
         """
         Считает income / expense / profit / profitability в рублях.
