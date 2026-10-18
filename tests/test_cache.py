@@ -16,15 +16,17 @@ def mock_redis(monkeypatch):
 
 
 @pytest.fixture
-def reset_cache_client():
+def reset_cache_state(monkeypatch):
     """
-    Сбрасывает глобальный _client до и после теста.
+    Сбрасывает глобальное состояние app.cache перед тестом.
     """
     import app.cache
 
-    app.cache._client = None
+    monkeypatch.setattr(app.cache, "_client", None)
+    monkeypatch.setattr(app.cache, "_client_unavailable", False)
     yield
-    app.cache._client = None
+    monkeypatch.setattr(app.cache, "_client", None)
+    monkeypatch.setattr(app.cache, "_client_unavailable", True)
 
 
 class FakeRate:
@@ -70,16 +72,38 @@ def test_get_rates_map_works_without_redis(app, monkeypatch):
         assert result["EUR"][0].rate_rub == 97.0
 
 
-def test_cache_module_returns_none_on_unreachable_redis(monkeypatch, reset_cache_client):
+def test_cache_module_returns_none_on_unreachable_redis(monkeypatch, reset_cache_state):
     """get_cache возвращает None, если Redis недоступен — приложение не падает."""
     import app.cache
 
-    monkeypatch.setenv("REDIS_URL", "redis://invalid-host:9999/0")
+    def raising_from_url(*args, **kwargs):
+        raise app.cache.redis.RedisError("connection refused")
+
+    monkeypatch.setattr(app.cache.redis, "from_url", raising_from_url)
 
     cache = app.cache.get_cache()
 
     assert cache is None
-    assert app.cache._client is None
+    assert app.cache._client_unavailable is True
+
+
+def test_cache_module_does_not_retry_after_failure(monkeypatch, reset_cache_state):
+    """После первого провала get_cache не пытается снова — иначе каждый запрос ждёт таймаут."""
+    import app.cache
+
+    calls = {"count": 0}
+
+    def counting_from_url(*args, **kwargs):
+        calls["count"] += 1
+        raise app.cache.redis.RedisError("connection refused")
+
+    monkeypatch.setattr(app.cache.redis, "from_url", counting_from_url)
+
+    app.cache.get_cache()
+    app.cache.get_cache()
+    app.cache.get_cache()
+
+    assert calls["count"] == 1  # попытка подключения была только одна
 
 
 def test_upsert_rates_invalidates_cache(app, mock_redis):

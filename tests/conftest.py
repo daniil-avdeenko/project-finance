@@ -83,3 +83,14 @@ def regular_client(app):
         session["_user_id"] = str(user_id)
         session["_fresh"] = True
     return client
+
+
+@pytest.fixture(autouse=True)
+def _isolate_redis(monkeypatch):
+    """
+    Все тесты по умолчанию работают без Redis.
+    """
+    import app.cache
+
+    monkeypatch.setattr(app.cache, "_client", None)
+    monkeypatch.setattr(app.cache, "_client_unavailable", True)
