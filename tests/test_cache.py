@@ -120,3 +120,56 @@ def test_upsert_rates_invalidates_cache(app, mock_redis):
 
         assert mock_redis.exists("rates_map:USD") == 0
         assert mock_redis.exists("rates_map:EUR") == 0
+
+
+def test_get_rates_map_falls_back_when_redis_dies(app, monkeypatch):
+    """
+    Redis был доступен, потом упал — get_rates_map переключается на БД.
+
+    Регресс: раньше _client_unavailable срабатывал только при первичном
+    подключении. Если клиент уже создан, get_cache() возвращал его,
+    и каждый запрос платил socket_timeout при попытке cache.get().
+    """
+    from datetime import date
+
+    import redis as redis_lib
+
+    from app import cache as cache_module
+
+    fake = fakeredis.FakeRedis(decode_responses=True)
+    monkeypatch.setattr(cache_module, "_client", fake)
+    monkeypatch.setattr(cache_module, "_client_unavailable", False)
+    monkeypatch.setattr(currency_service, "get_cache", cache_module.get_cache)
+    monkeypatch.setattr(
+        currency_service, "mark_cache_unavailable", cache_module.mark_cache_unavailable
+    )
+
+    with app.app_context():
+        upsert_rates([FakeRate("USD", 1, 84.5, date(2026, 9, 19))])
+
+        # Первый запрос — кэш заполняется через fakeredis
+        result1 = get_rates_map({"USD"})
+        assert result1["USD"][0].rate_rub == 84.5
+        assert fake.exists("rates_map:USD") == 1
+
+        # «Ломаем» fakeredis — теперь get/setex падают
+        def raising_get(*args, **kwargs):
+            raise redis_lib.ConnectionError("redis is dead")
+
+        def raising_setex(*args, **kwargs):
+            raise redis_lib.ConnectionError("redis is dead")
+
+        monkeypatch.setattr(fake, "get", raising_get)
+        monkeypatch.setattr(fake, "setex", raising_setex)
+
+        # Второй запрос — падение Redis ловится, идёт fallback на БД
+        result2 = get_rates_map({"USD"})
+        assert result2["USD"][0].rate_rub == 84.5
+
+        # Клиент помечен как недоступный — get_cache() возвращает None
+        assert cache_module._client_unavailable is True
+        assert cache_module.get_cache() is None
+
+        # Третий запрос — уже без Redis, только БД
+        result3 = get_rates_map({"USD"})
+        assert result3["USD"][0].rate_rub == 84.5

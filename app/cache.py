@@ -42,7 +42,17 @@ def get_cache() -> redis.Redis | None:
         client.ping()
         _client = client
     except redis.RedisError as e:
-        logger.warning("Redis недоступен (%s): %s. Работаем без кэша.", url, e)
+        logger.warning("Redis unavailable (%s): %s. Running without cache.", url, e)
         _client_unavailable = True
 
     return _client
+
+
+def mark_cache_unavailable() -> None:
+    """
+    Помечает Redis как недоступный после ошибки в рантайме.
+    """
+    global _client, _client_unavailable
+    _client = None
+    _client_unavailable = True
+    logger.warning("Redis unavailable. Running without cache.")
