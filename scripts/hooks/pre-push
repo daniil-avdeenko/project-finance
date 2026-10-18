@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+#
+# Pre-push hook: проверяет состояние репозитория перед push.
+#
+# Проверки:
+#   1. Не пушим напрямую в main/master — только через PR.
+#   2. Нет незакоммиченных изменений — иначе они потеряются при следующем
+#      reset/checkout.
+#   3. Имя ветки соответствует Conventional Commits (feat/, fix/, chore/, ...).
+
+
+set -euo pipefail
+
+# --- Проверка 1: запрет прямого push в main/master ---
+current_branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+
+if [ "$current_branch" = "main" ] || [ "$current_branch" = "master" ]; then
+    echo ""
+    echo "❌ Direct push to '$current_branch' is forbidden. Use a feature branch + PR:"
+    echo ""
+    echo "    git switch -c feat/your-feature-name"
+    echo ""
+    exit 1
+fi
+
+# --- Проверка 2: незакоммиченные изменения ---
+if [ -n "$(git status --porcelain)" ]; then
+    echo ""
+    echo "❌ Uncommitted changes detected. Commit or stash before pushing:"
+    echo ""
+    git status --short
+    echo ""
+    echo "Bypass intentionally: git push --no-verify"
+    echo ""
+    exit 1
+fi
+
+# --- Проверка 3: имя ветки по конвенции ---
+allowed_prefixes="feat|fix|chore|docs|refactor|perf|test|ci"
+if ! echo "$current_branch" | grep -qE "^(${allowed_prefixes})/"; then
+    echo ""
+    echo "❌ Branch name '$current_branch' doesn't follow convention."
+    echo ""
+    echo "   Allowed prefixes: feat/ fix/ chore/ docs/ refactor/ perf/ test/ ci/"
+    echo "   Example: feat/add-redis-cache"
+    echo ""
+    echo "   Rename: git branch -m $current_branch feat/your-name"
+    echo ""
+    exit 1
+fi
+
+exit 0
