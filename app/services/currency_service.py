@@ -14,7 +14,7 @@ from datetime import date, timedelta
 from sqlalchemy import select
 
 from app import db
-from app.cache import get_cache
+from app.cache import get_cache, mark_cache_unavailable
 from app.models import CurrencyRate
 
 logger = logging.getLogger(__name__)
@@ -79,9 +79,10 @@ def upsert_rates(rates: list) -> dict[str, int]:
                 cache.delete(key)
                 deleted += 1
             if deleted:
-                logger.info("Кэш курсов инвалидирован: %d ключей", deleted)
+                logger.info("Rates cache invalidated: %d keys", deleted)
         except Exception as e:
-            logger.warning("Ошибка инвалидации кэша: %s", e)
+            logger.warning("Cache invalidation error: %s", e)
+            mark_cache_unavailable()
     logger.info("CurrencyRate: added=%d, updated=%d", added, updated)
     return {"added": added, "updated": updated}
 
@@ -121,7 +122,7 @@ def convert_to_rub(amount: float, currency: str, on_date: date | None = None) ->
 
     rate = get_rate(currency, on_date)
     if rate is None:
-        logger.warning("Курс %s на %s не найден — сумма не сконвертирована", currency, on_date)
+        logger.warning("Rate %s on %s not found — amount not converted", currency, on_date)
         return amount
 
     return round(amount * rate.rate_rub / rate.nominal, 2)
@@ -161,7 +162,9 @@ def get_rates_map(codes: set[str]) -> dict[str, list[CachedRate]]:
                     for code, rates in parsed.items()
                 }
         except Exception as e:
-            logger.warning("Ошибка чтения из Redis (%s): %s", cache_key, e)
+            logger.warning("Redis read error (%s): %s", cache_key, e)
+            mark_cache_unavailable()
+            cache = None
 
     stmt = (
         select(CurrencyRate)
@@ -189,7 +192,8 @@ def get_rates_map(codes: set[str]) -> dict[str, list[CachedRate]]:
                 json.dumps(serialized, default=str),
             )
         except Exception as e:
-            logger.warning("Ошибка записи в Redis (%s): %s", cache_key, e)
+            logger.warning("Redis write error (%s): %s", cache_key, e)
+            mark_cache_unavailable()
 
     return result
 
@@ -218,7 +222,7 @@ def convert_with_rates(
 
     rates = rates_map.get(currency, [])
     if not rates:
-        logger.warning("Курс %s не найден в кеше", currency)
+        logger.warning("Rate %s not found in cache", currency)
         return amount
 
     rate: CachedRate | None = None
@@ -231,7 +235,7 @@ def convert_with_rates(
                 break
 
     if rate is None:
-        logger.warning("Курс %s на %s не найден в кеше", currency, on_date)
+        logger.warning("Rate %s on %s not found in cache", currency, on_date)
         return amount
 
     return round(amount * rate.rate_rub / rate.nominal, 2)
