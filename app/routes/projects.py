@@ -13,8 +13,9 @@ from app import db
 from app.decorators import admin_required
 from app.forms import ProjectForm
 from app.helpers import get_next_url, make_csv_response, safe_redirect
-from app.models import EmployeeProject, ExpenseCategory, IncomeCategory, Project, Transaction
+from app.models import EmployeeProject, Project, Transaction
 from app.routes.blueprint import main_bp
+from app.services.category_service import get_category_dicts
 from app.services.currency_service import get_rates_map
 from app.services.excel_export import build_projects_workbook, make_xlsx_response
 from app.services.project_stats import ProjectStatsService
@@ -191,8 +192,7 @@ def project_detail(project_id):
     transactions = (
         project.transactions.filter_by(is_deleted=False).order_by(Transaction.date.desc()).all()
     )
-    income_categories = {c.id: c.name for c in IncomeCategory.query.all()}
-    expense_categories = {c.id: c.name for c in ExpenseCategory.query.all()}
+    income_categories, expense_categories = get_category_dicts()
 
     return render_template(
         "projects/detail.html",

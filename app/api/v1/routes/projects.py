@@ -21,22 +21,19 @@ from app.api.v1.serializers import (
 )
 from app.models import (
     EmployeeProject,  # noqa: F401
-    ExpenseCategory,
-    IncomeCategory,
     Project,
     Transaction,
 )
+from app.services.category_service import get_categories_map
 from app.services.currency_service import get_rates_map
 from app.services.project_stats import ProjectStatsService
 
 
 def _load_categories() -> dict[tuple[str, int], str]:
     """
-    Имена категорий с ключом (type, category_id).
+    Имена категорий с ключом (type, category_id). Кэшируется в Redis.
     """
-    income = {("income", c.id): c.name for c in IncomeCategory.query.all()}
-    expense = {("expense", c.id): c.name for c in ExpenseCategory.query.all()}
-    return {**income, **expense}
+    return get_categories_map()
 
 
 def _load_transactions(date_from, date_to) -> list:
