@@ -227,11 +227,10 @@ def create_app():
 
     @app.cli.command("scrape-cbr")
     def scrape_cbr_command():
-        """Парсит курсы ЦБ через Playwright и сохраняет в БД + Grist."""
+        """Парсит курсы ЦБ через Playwright и сохраняет в БД."""
         import asyncio
 
         from app.integrations.cbr_scraper import scrape_cbr_rates
-        from app.integrations.grist_httpx import sync_rates_to_grist_httpx
         from app.services.currency_service import upsert_rates
 
         app.logger.info("Начинаю парсинг курсов ЦБ...")
@@ -243,20 +242,11 @@ def create_app():
 
             app.logger.info("Получено %d курсов", len(rates))
 
-            # 1. БД — источник истины для расчётов
             db_result = upsert_rates(rates)
             app.logger.info(
                 "БД: добавлено %d, обновлено %d",
                 db_result["added"],
                 db_result["updated"],
-            )
-
-            # 2. Grist — витрина для команды
-            result = asyncio.run(sync_rates_to_grist_httpx(rates))
-            app.logger.info(
-                "Grist: добавлено %d, обновлено %d",
-                result.get("added", 0),
-                result.get("updated", 0),
             )
         except Exception as e:
             app.logger.error("Ошибка scrape-cbr: %s", e, exc_info=True)
