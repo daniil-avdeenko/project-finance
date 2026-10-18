@@ -197,6 +197,8 @@ python-dotenv==1.2.4
     # via -r /app/requirements.in
 pyyaml==6.0.3
     # via pre-commit
+redis==8.1.0
+    # via -r /app/requirements.in
 requests==2.34.2
     # via requests-oauthlib
 requests-oauthlib==2.0.0

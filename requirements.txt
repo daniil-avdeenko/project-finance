@@ -144,6 +144,8 @@ pyee==13.0.1
     # via playwright
 python-dotenv==1.0.1
     # via -r requirements.in
+redis==8.1.0
+    # via -r requirements.in
 requests==2.34.2
     # via requests-oauthlib
 requests-oauthlib==2.0.0
