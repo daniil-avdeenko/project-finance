@@ -152,6 +152,7 @@ Swagger UI: `/api/v1/docs` (за `@login_required`).
 
 - **`pytest`** — 255+ тестов, покрытие 88%. Unit (формы, хелперы, сервисы) + integration (роуты, API, БД).
 - **Pre-commit** — ruff (линтер + форматтер), mypy, gitleaks, conventional-commit.
+- **Pre-push hook.** Проверяет состояние репозитория перед `git push` (блокирует прямой push в `main`, push с незакоммиченными изменениями и проверяет имя ветки по CC).
 - **GitHub Actions** — три параллельных job'а на PR: `Tests`, `Lint & Type Check` (ruff + mypy), `Secrets scan` (gitleaks).
 - **Deploy Preview** — на каждый PR - GitHub-hosted runner. Собирает изолированный стек, гоняет smoke-тест на `/healthz`.
 - **Deploy** (prod) — после merge в `main` (через `workflow_run` после зелёного CI), **self-hosted runner на сервере**. Код уже прошёл ревью и CI, безопасно деплоить. SSH-порт наружу не открыт — runner сам опрашивает GitHub.
