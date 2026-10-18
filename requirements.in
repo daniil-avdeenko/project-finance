@@ -35,3 +35,4 @@ playwright
 # Utilities
 python-dotenv
 tzdata
+redis

@@ -54,6 +54,17 @@ services:
     command: ["python", "-m", "scheduler.runner"]
     networks: [backend]
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    mem_limit: 64m
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks: [ backend ]
+
 networks:
   backend:
     driver: bridge
