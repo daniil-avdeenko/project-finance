@@ -40,6 +40,7 @@ from app.models import (
     Transaction,
     User,
 )
+from app.services.category_service import invalidate_categories_cache
 
 # ============================================================
 #   КОНСТАНТЫ
@@ -738,6 +739,9 @@ def seed():
                 current = next_month
 
         db.session.commit()
+        # Сбрасываем кэш категорий
+        invalidate_categories_cache()
+
         print("✅ Транзакции созданы")
         print("🎉 База данных успешно заполнена!")
         print("Логин: admin пароль: admin")

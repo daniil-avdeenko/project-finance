@@ -104,3 +104,67 @@ def test_get_categories_works_without_redis(app, monkeypatch):
         result = get_categories()
         assert len(result["income"]) == 1
         assert result["income"][0].name == "A"
+
+
+def test_create_income_category_invalidates_cache(auth_client, app, mock_redis):
+    """POST /income-categories/create сбрасывает кэш."""
+    with app.app_context():
+        get_categories()  # прогрев
+        assert mock_redis.exists("categories:all") == 1
+
+    response = auth_client.post(
+        "/income-categories/create",
+        data={"name": "NewCat"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+
+    with app.app_context():
+        assert mock_redis.exists("categories:all") == 0
+
+
+def test_edit_expense_category_invalidates_cache(auth_client, app, mock_redis):
+    """POST /expense-categories/<id>/edit сбрасывает кэш."""
+    from app import db
+    from app.models import ExpenseCategory
+
+    with app.app_context():
+        cat = ExpenseCategory(name="Old")
+        db.session.add(cat)
+        db.session.commit()
+        cat_id = cat.id
+        get_categories()
+        assert mock_redis.exists("categories:all") == 1
+
+    response = auth_client.post(
+        f"/expense-categories/{cat_id}/edit",
+        data={"name": "New"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+
+    with app.app_context():
+        assert mock_redis.exists("categories:all") == 0
+
+
+def test_delete_income_category_invalidates_cache(auth_client, app, mock_redis):
+    """POST /income-categories/<id>/delete сбрасывает кэш."""
+    from app import db
+    from app.models import IncomeCategory
+
+    with app.app_context():
+        cat = IncomeCategory(name="ToDelete")
+        db.session.add(cat)
+        db.session.commit()
+        cat_id = cat.id
+        get_categories()
+        assert mock_redis.exists("categories:all") == 1
+
+    response = auth_client.post(
+        f"/income-categories/{cat_id}/delete",
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+
+    with app.app_context():
+        assert mock_redis.exists("categories:all") == 0

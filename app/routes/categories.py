@@ -7,6 +7,7 @@ from app.forms import ExpenseCategoryForm, IncomeCategoryForm
 from app.helpers import get_next_url, safe_redirect
 from app.models import ExpenseCategory, IncomeCategory, Transaction
 from app.routes.blueprint import main_bp
+from app.services.category_service import invalidate_categories_cache
 
 
 # ===== ДОХОДЫ =====
@@ -31,6 +32,7 @@ def income_category_create():
         category = IncomeCategory(name=form.name.data)
         db.session.add(category)
         db.session.commit()
+        invalidate_categories_cache()
         flash("Категория дохода добавлена", "success")
         return safe_redirect(default_url)
     return render_template("categories/create_income.html", form=form, next_url=next_url)
@@ -49,6 +51,7 @@ def income_category_edit(category_id):
     if form.validate_on_submit():
         category.name = form.name.data
         db.session.commit()
+        invalidate_categories_cache()
         flash("Категория обновлена", "success")
         return safe_redirect(default_url)
     return render_template("categories/edit.html", form=form, category=category, next_url=next_url)
@@ -69,6 +72,7 @@ def income_category_delete(category_id):
         return safe_redirect(url_for("main.income_categories_list"))
     db.session.delete(category)
     db.session.commit()
+    invalidate_categories_cache()
     flash("Категория удалена", "warning")
     return safe_redirect(url_for("main.income_categories_list"))
 
@@ -95,6 +99,7 @@ def expense_category_create():
         category = ExpenseCategory(name=form.name.data)
         db.session.add(category)
         db.session.commit()
+        invalidate_categories_cache()
         flash("Категория расхода добавлена", "success")
         return safe_redirect(default_url)
     return render_template("categories/create_expense.html", form=form, next_url=next_url)
@@ -113,6 +118,7 @@ def expense_category_edit(category_id):
     if form.validate_on_submit():
         category.name = form.name.data
         db.session.commit()
+        invalidate_categories_cache()
         flash("Категория обновлена", "success")
         return safe_redirect(default_url)
     return render_template("categories/edit.html", form=form, category=category, next_url=next_url)
@@ -132,5 +138,6 @@ def expense_category_delete(category_id):
         return safe_redirect(url_for("main.expense_categories_list"))
     db.session.delete(category)
     db.session.commit()
+    invalidate_categories_cache()
     flash("Категория удалена", "warning")
     return safe_redirect(url_for("main.expense_categories_list"))
