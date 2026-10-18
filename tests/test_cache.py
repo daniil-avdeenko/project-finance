@@ -80,3 +80,19 @@ def test_cache_module_returns_none_on_unreachable_redis(monkeypatch, reset_cache
 
     assert cache is None
     assert app.cache._client is None
+
+
+def test_upsert_rates_invalidates_cache(app, mock_redis):
+    """После обновления курсов кэш должен сброситься."""
+    from datetime import date
+
+    with app.app_context():
+        mock_redis.set("rates_map:USD", '{"USD": []}')
+        mock_redis.set("rates_map:EUR", '{"EUR": []}')
+        assert mock_redis.exists("rates_map:USD") == 1
+        assert mock_redis.exists("rates_map:EUR") == 1
+
+        upsert_rates([FakeRate("USD", 1, 85.0, date(2026, 9, 20))])
+
+        assert mock_redis.exists("rates_map:USD") == 0
+        assert mock_redis.exists("rates_map:EUR") == 0

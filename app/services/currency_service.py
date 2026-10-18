@@ -70,6 +70,18 @@ def upsert_rates(rates: list) -> dict[str, int]:
             added += 1
 
     db.session.commit()
+    # Инвалидация кэша: удаляем все ключи rates_map:* через SCAN.
+    cache = get_cache()
+    if cache:
+        try:
+            deleted = 0
+            for key in cache.scan_iter(f"{RATES_CACHE_PREFIX}*"):
+                cache.delete(key)
+                deleted += 1
+            if deleted:
+                logger.info("Кэш курсов инвалидирован: %d ключей", deleted)
+        except Exception as e:
+            logger.warning("Ошибка инвалидации кэша: %s", e)
     logger.info("CurrencyRate: added=%d, updated=%d", added, updated)
     return {"added": added, "updated": updated}
 
