@@ -28,7 +28,7 @@ from gspread_formatting import (
     set_data_validation_for_cell_range,
 )
 
-from app.services.currency_service import get_rates_map
+from app.services.currency_service import convert_with_rates, get_rates_map
 from app.services.project_stats import compute_stats_by_project
 
 logger = logging.getLogger(__name__)
@@ -251,28 +251,38 @@ def sync_projects_to_sheets(
 def sync_transactions_to_sheets(
     worksheet: gspread.Worksheet,
     transactions: list,
+    rates_map: dict,
     *,
     is_new_sheet: bool = True,
 ) -> int:
     """
     Экспортирует транзакции. Возвращает количество строк.
 
+    rates_map — предзагруженные курсы. Используется
+    для конвертации в рубли в памяти, без N+1 через t.amount_rub,
+    который делает SQL на каждую транзакцию.
+
     is_new_sheet=True — применяет валидацию и формат (при создании листа).
     is_new_sheet=False — только данные (при обычной синхронизации).
     """
-    rows = [
-        [
-            t.id,
-            t.date.strftime("%Y-%m-%d") if t.date else "",
-            t.project.name if t.project else "",
-            t.type,
-            round(t.amount, 2),
-            t.currency or "RUB",
-            t.amount_rub,
-            t.description or "",
-        ]
-        for t in transactions
-    ]
+    rows = []
+    for t in transactions:
+        on_date = t.date.date() if t.date else None
+        rub = convert_with_rates(t.amount, t.currency or "RUB", on_date, rates_map)
+
+        rows.append(
+            [
+                t.id,
+                t.date.strftime("%Y-%m-%d") if t.date else "",
+                t.project.name if t.project else "",
+                t.type,
+                round(t.amount, 2),
+                t.currency or "RUB",
+                rub,
+                t.description or "",
+            ]
+        )
+
     _fill_worksheet(worksheet, TRANSACTIONS_HEADERS, rows)
     if is_new_sheet:
         apply_validation(worksheet)
@@ -312,6 +322,7 @@ def sync_all_to_sheets(projects: list, transactions: list, rates: list) -> dict[
     n_transactions = sync_transactions_to_sheets(
         sheets["Transactions"],
         transactions,
+        rates_map,
         is_new_sheet="Transactions" in created,
     )
     n_rates = sync_exchange_rates_to_sheets(sheets["ExchangeRates"], rates)

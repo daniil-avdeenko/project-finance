@@ -1,6 +1,6 @@
 """Тесты интеграции с Google Sheets через gspread (без сети)."""
 
-from datetime import date
+from datetime import UTC, date, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,23 +15,36 @@ from app.integrations import google_sheets as gs
 
 @pytest.fixture
 def fake_transaction():
+    """Простой объект, имитирующий Transaction с подгруженным project."""
+
     class FakeProject:
         name = "Тестовый проект"
 
     class FakeTransaction:
         id = 42
-        date = None
+        date = datetime(2026, 9, 15, 12, 0, 0, tzinfo=UTC)
+        project_id = 1
         project = FakeProject()
         type = "income"
-        amount = 100.0
+        amount = 5000.0
         currency = "USD"
         description = "Оплата"
 
-        @property
-        def amount_rub(self):
-            return 8450.0
-
     return FakeTransaction()
+
+
+@pytest.fixture
+def fake_rates_map():
+    """rates_map для конвертации в тестах."""
+    from datetime import date as date_cls
+
+    class FakeRate:
+        code = "USD"
+        rate_date = date_cls(2026, 9, 15)
+        nominal = 1
+        rate_rub = 84.50
+
+    return {"USD": [FakeRate()]}
 
 
 @pytest.fixture
@@ -176,12 +189,11 @@ def test_sync_projects_handles_empty_list(_fmt, mock_worksheet):
 @patch("app.integrations.google_sheets.set_data_validation_for_cell_range")
 @patch("app.integrations.google_sheets.format_cell_range")
 def test_sync_transactions_applies_validation(
-    _fmt, mock_validation, mock_worksheet, fake_transaction
+    _fmt, mock_validation, mock_worksheet, fake_transaction, fake_rates_map
 ):
     """sync_transactions настраивает dropdown-валидацию на колонки D и F."""
-    gs.sync_transactions_to_sheets(mock_worksheet, [fake_transaction])
+    gs.sync_transactions_to_sheets(mock_worksheet, [fake_transaction], fake_rates_map)
 
-    # Два вызова set_data_validation — на D2:D1000 и F2:F1000
     assert mock_validation.call_count == 2
     ranges = [call.args[1] for call in mock_validation.call_args_list]
     assert "D2:D1000" in ranges
@@ -190,9 +202,25 @@ def test_sync_transactions_applies_validation(
 
 @patch("app.integrations.google_sheets.set_data_validation_for_cell_range")
 @patch("app.integrations.google_sheets.format_cell_range")
-def test_sync_transactions_empty_date(_fmt, _val, mock_worksheet, fake_transaction):
-    """Транзакция без даты → пустая строка в колонке Date."""
-    gs.sync_transactions_to_sheets(mock_worksheet, [fake_transaction])
+def test_sync_transactions_empty_date(_fmt, _val, mock_worksheet, fake_rates_map):
+    """Транзакция без даты → пустая строка в колонке Date, сумма из rates_map."""
+
+    class FakeProject:
+        name = "Тестовый проект"
+
+    class FakeTransaction:
+        id = 42
+        date = None
+        project_id = 1
+        project = FakeProject()
+        type = "income"
+        amount = 100.0
+        currency = "USD"
+        description = "Оплата"
+
+    tx = FakeTransaction()
+
+    gs.sync_transactions_to_sheets(mock_worksheet, [tx], fake_rates_map)
 
     data_calls = [c for c in mock_worksheet.update.call_args_list if c.args[1].startswith("A2")]
     assert len(data_calls) == 1
@@ -200,16 +228,18 @@ def test_sync_transactions_empty_date(_fmt, _val, mock_worksheet, fake_transacti
     assert row[1] == ""  # date → ""
     assert row[3] == "income"
     assert row[5] == "USD"
-    assert row[6] == 8450.0
+    assert row[6] == 8450.0  # 100 USD * 84.50
 
 
 @patch("app.integrations.google_sheets.set_data_validation_for_cell_range")
 @patch("app.integrations.google_sheets.format_cell_range")
 def test_sync_transactions_skips_validation_on_existing_sheet(
-    _fmt, mock_validation, mock_worksheet, fake_transaction
+    _fmt, mock_validation, mock_worksheet, fake_transaction, fake_rates_map
 ):
     """При is_new_sheet=False валидация не применяется — экономия запросов."""
-    gs.sync_transactions_to_sheets(mock_worksheet, [fake_transaction], is_new_sheet=False)
+    gs.sync_transactions_to_sheets(
+        mock_worksheet, [fake_transaction], fake_rates_map, is_new_sheet=False
+    )
     mock_validation.assert_not_called()
 
 
