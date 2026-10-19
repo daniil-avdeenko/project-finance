@@ -14,20 +14,6 @@ from app.integrations import google_sheets as gs
 
 
 @pytest.fixture
-def fake_project():
-    class FakeProject:
-        id = 1
-        name = "Тестовый проект"
-        description = "Описание"
-        total_income = 100_000.0
-        total_expense = 40_000.0
-        profit = 60_000.0
-        profitability = 60.0
-
-    return FakeProject()
-
-
-@pytest.fixture
 def fake_transaction():
     class FakeProject:
         name = "Тестовый проект"
@@ -147,14 +133,22 @@ def test_apply_headers_writes_and_formats(mock_format, mock_worksheet):
 
 
 @patch("app.integrations.google_sheets.format_cell_range")
-def test_sync_projects_writes_correct_rows(_fmt, mock_worksheet, fake_project):
-    """sync_projects формирует правильный список строк."""
-    count = gs.sync_projects_to_sheets(mock_worksheet, [fake_project])
+def test_sync_projects_writes_correct_rows(_fmt, mock_worksheet):
+    """sync_projects формирует правильный список строк из stats_map."""
+    from app.services.project_stats import ProjectStats
+
+    class FakeProject:
+        id = 1
+        name = "Тестовый проект"
+        description = "Описание"
+
+    stats_map = {1: ProjectStats(100_000.0, 40_000.0, 60_000.0, 60.0)}
+
+    count = gs.sync_projects_to_sheets(mock_worksheet, [FakeProject()], stats_map)
 
     assert count == 1
     mock_worksheet.clear.assert_called_once()
 
-    # Ищем вызов update с данными начиная с A2
     data_calls = [c for c in mock_worksheet.update.call_args_list if c.args[1].startswith("A2")]
     assert len(data_calls) == 1
 
@@ -165,7 +159,7 @@ def test_sync_projects_writes_correct_rows(_fmt, mock_worksheet, fake_project):
 @patch("app.integrations.google_sheets.format_cell_range")
 def test_sync_projects_handles_empty_list(_fmt, mock_worksheet):
     """Пустой список — clear и headers, без update данных."""
-    count = gs.sync_projects_to_sheets(mock_worksheet, [])
+    count = gs.sync_projects_to_sheets(mock_worksheet, [], {})
 
     assert count == 0
     mock_worksheet.clear.assert_called_once()

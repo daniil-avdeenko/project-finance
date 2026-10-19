@@ -168,3 +168,44 @@ def test_collect_codes(app):
         ]
 
         assert ProjectStatsService.collect_codes(transactions) == {"USD", "EUR", "RUB"}
+
+
+def test_compute_stats_by_project_groups_and_calculates(app):
+    """compute_stats_by_project группирует транзакции по проекту и считает stats."""
+    from app.services.project_stats import compute_stats_by_project
+
+    class FakeTx:
+        def __init__(self, project_id, type_, amount):
+            self.project_id = project_id
+            self.type = type_
+            self.amount = amount
+            self.currency = "RUB"
+            self.date = None
+
+    txs = [
+        FakeTx(1, "income", 1000.0),
+        FakeTx(1, "expense", 300.0),
+        FakeTx(2, "income", 500.0),
+    ]
+
+    result = compute_stats_by_project(txs, {})
+
+    assert result[1].total_income == 1000.0
+    assert result[1].total_expense == 300.0
+    assert result[1].profit == 700.0
+    assert result[2].total_income == 500.0
+    assert result[2].profit == 500.0
+
+
+def test_count_by_project_counts_per_group():
+    """count_by_project считает транзакции по проектам одним проходом."""
+    from app.services.project_stats import count_by_project
+
+    class FakeTx:
+        def __init__(self, project_id):
+            self.project_id = project_id
+
+    txs = [FakeTx(1), FakeTx(1), FakeTx(1), FakeTx(2)]
+    result = count_by_project(txs)
+
+    assert result == {1: 3, 2: 1}

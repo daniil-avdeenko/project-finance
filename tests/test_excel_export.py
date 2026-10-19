@@ -21,34 +21,6 @@ from app.services.excel_export import (
 
 
 @pytest.fixture
-def fake_project():
-    class FakeProject:
-        id = 1
-        name = "CRM для банка"
-        description = "Описание"
-        total_income = 100_000.0
-        total_expense = 40_000.0
-        profit = 60_000.0
-        profitability = 60.0
-
-        class _Emp:
-            pass
-
-        employee_roles = [_Emp(), _Emp()]
-
-        class _TxQuery:
-            def filter_by(self, **kw):
-                return self
-
-            def count(self):
-                return 25
-
-        transactions = _TxQuery()
-
-    return FakeProject()
-
-
-@pytest.fixture
 def fake_transaction():
     class FakeProject:
         name = "CRM для банка"
@@ -91,9 +63,24 @@ def fake_employee():
 # ============================================================
 
 
-def test_projects_workbook_has_headers_and_row(app, fake_project):
+def test_projects_workbook_has_headers_and_row(app):
+    from app.services.project_stats import ProjectStats
+
+    class FakeProject:
+        id = 1
+        name = "CRM для банка"
+        description = "Описание"
+
+        class _Emp:
+            pass
+
+        employee_roles = [_Emp(), _Emp()]
+
+    stats_map = {1: ProjectStats(100_000.0, 40_000.0, 60_000.0, 60.0)}
+    tx_count_map = {1: 25}
+
     with app.app_context():
-        wb = build_projects_workbook([fake_project])
+        wb = build_projects_workbook([FakeProject()], stats_map, tx_count_map)
 
     ws = wb["Проекты"]
     headers = [c.value for c in ws[1]]
@@ -104,13 +91,13 @@ def test_projects_workbook_has_headers_and_row(app, fake_project):
     row = [c.value for c in ws[2]]
     assert row[0] == 1
     assert row[1] == "CRM для банка"
-    assert row[5] == 60_000.0  # Прибыль
-    assert isinstance(row[5], float)  # именно число, не строка
+    assert row[5] == 60_000.0
+    assert isinstance(row[5], float)
 
 
 def test_projects_workbook_empty_list(app):
     with app.app_context():
-        wb = build_projects_workbook([])
+        wb = build_projects_workbook([], {}, {})
 
     ws = wb["Проекты"]
     assert ws.max_row == 1  # только заголовки
@@ -177,7 +164,7 @@ def test_employees_workbook_formats_roles(app, fake_employee):
 
 def test_make_xlsx_response_headers(app):
     with app.app_context():
-        wb = build_projects_workbook([])
+        wb = build_projects_workbook([], {}, {})
         response = make_xlsx_response(wb, "test.xlsx")
 
     assert response.mimetype == (
@@ -191,7 +178,7 @@ def test_make_xlsx_response_headers(app):
 def test_make_xlsx_response_body_is_valid_xlsx(app):
     """Скачанный файл — валидный .xlsx."""
     with app.app_context():
-        wb = build_projects_workbook([])
+        wb = build_projects_workbook([], {}, {})
         response = make_xlsx_response(wb, "test.xlsx")
 
     reopened = load_workbook(BytesIO(response.get_data()), read_only=True)

@@ -28,6 +28,9 @@ from gspread_formatting import (
     set_data_validation_for_cell_range,
 )
 
+from app.services.currency_service import get_rates_map
+from app.services.project_stats import compute_stats_by_project
+
 logger = logging.getLogger(__name__)
 
 SCOPES = [
@@ -219,17 +222,25 @@ def _fill_worksheet(worksheet: gspread.Worksheet, headers: list[str], rows: list
         worksheet.update(rows, "A2")
 
 
-def sync_projects_to_sheets(worksheet: gspread.Worksheet, projects: list) -> int:
-    """Экспортирует проекты. Возвращает количество строк."""
+def sync_projects_to_sheets(
+    worksheet: gspread.Worksheet,
+    projects: list,
+    stats_map: dict,
+) -> int:
+    """
+    Экспортирует проекты. Возвращает количество строк.
+    """
+    from app.services.project_stats import EMPTY_STATS
+
     rows = [
         [
             p.id,
             p.name,
             p.description or "",
-            round(p.total_income, 2),
-            round(p.total_expense, 2),
-            round(p.profit, 2),
-            p.profitability,
+            round(stats_map.get(p.id, EMPTY_STATS).total_income, 2),
+            round(stats_map.get(p.id, EMPTY_STATS).total_expense, 2),
+            round(stats_map.get(p.id, EMPTY_STATS).profit, 2),
+            stats_map.get(p.id, EMPTY_STATS).profitability,
         ]
         for p in projects
     ]
@@ -291,7 +302,13 @@ def sync_all_to_sheets(projects: list, transactions: list, rates: list) -> dict[
     spreadsheet = get_spreadsheet()
     sheets, created = ensure_sheets(spreadsheet, ["Projects", "Transactions", "ExchangeRates"])
 
-    n_projects = sync_projects_to_sheets(sheets["Projects"], projects)
+    # Курсы для конвертации — один запрос (или из Redis-кэша)
+    codes = {t.currency for t in transactions if t.currency}
+    rates_map = get_rates_map(codes)
+    # Статистика по проектам — один проход по транзакциям
+    stats_map = compute_stats_by_project(transactions, rates_map)
+
+    n_projects = sync_projects_to_sheets(sheets["Projects"], projects, stats_map)
     n_transactions = sync_transactions_to_sheets(
         sheets["Transactions"],
         transactions,

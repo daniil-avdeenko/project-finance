@@ -3,9 +3,10 @@
 
 Загружает курсы один раз и считает все показатели в памяти.
 Убирает N+1: вместо запроса курса на каждую транзакцию — один
-get_rates_map на всю страницу.
+get_rates_map на всю страницу или экспорт.
 """
 
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 
 from app.services.currency_service import CachedRate, convert_with_rates
@@ -19,6 +20,10 @@ class ProjectStats:
     total_expense: float
     profit: float
     profitability: float
+
+
+# Заглушка для проектов без транзакций.
+EMPTY_STATS = ProjectStats(total_income=0.0, total_expense=0.0, profit=0.0, profitability=0.0)
 
 
 class ProjectStatsService:
@@ -68,3 +73,26 @@ class ProjectStatsService:
     def collect_codes(transactions: list) -> set[str]:
         """Возвращает множество валют, встречающихся в транзакциях."""
         return {t.currency for t in transactions if t.currency}
+
+
+def compute_stats_by_project(
+    transactions: list,
+    rates_map: dict[str, list[CachedRate]],
+) -> dict[int, ProjectStats]:
+    """
+    Группирует транзакции по project_id и считает статистику для каждой группы.
+
+    Один проход по транзакциям + один вызов calculate на проект.
+    """
+    by_project: dict[int, list] = defaultdict(list)
+    for t in transactions:
+        by_project[t.project_id].append(t)
+
+    return {pid: ProjectStatsService.calculate(txs, rates_map) for pid, txs in by_project.items()}
+
+
+def count_by_project(transactions: list) -> dict[int, int]:
+    """
+    Считает количество транзакций на проект одним проходом.
+    """
+    return dict(Counter(t.project_id for t in transactions))
