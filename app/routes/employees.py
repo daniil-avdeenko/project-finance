@@ -4,6 +4,7 @@ from io import StringIO
 
 from flask import flash, jsonify, render_template, request, url_for
 from flask_login import login_required
+from sqlalchemy.orm import joinedload
 
 from app import db
 from app.decorators import admin_required
@@ -294,7 +295,11 @@ def employee_delete(employee_id):
 @login_required
 def export_employees_csv():
     """Экспорт всех сотрудников в CSV."""
-    employees = Employee.query.all()
+    # joinedload двойной вложенности: employee → project_roles → project
+    employees = Employee.query.options(
+        joinedload(Employee.project_roles).joinedload(EmployeeProject.project)
+    ).all()
+
     si = StringIO()
     writer = csv.writer(si, delimiter=";", quoting=csv.QUOTE_MINIMAL)
     writer.writerow(["ID", "ФИО", "Телефон", "Email", "Проекты и роли"])
@@ -318,7 +323,9 @@ def export_employees_csv():
 @login_required
 def export_employees_xlsx():
     """Экспорт всех сотрудников в Excel (.xlsx)."""
-    employees = Employee.query.all()
+    employees = Employee.query.options(
+        joinedload(Employee.project_roles).joinedload(EmployeeProject.project)
+    ).all()
     wb = build_employees_workbook(employees)
     return make_xlsx_response(wb, "employees_export.xlsx")
 
