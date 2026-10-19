@@ -86,6 +86,7 @@ def create_app():
         app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///project_finance.db"
 
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    app.config["SQLALCHEMY_ECHO"] = os.getenv("SQLALCHEMY_ECHO", "false").lower() == "true"
 
     setup_logging(app)
     register_security_headers(app)
