@@ -8,6 +8,7 @@ from io import StringIO
 
 from flask import flash, render_template, request, url_for
 from flask_login import login_required
+from sqlalchemy.orm import joinedload
 
 from app import db
 from app.decorators import admin_required
@@ -18,7 +19,12 @@ from app.routes.blueprint import main_bp
 from app.services.category_service import get_category_dicts
 from app.services.currency_service import get_rates_map
 from app.services.excel_export import build_projects_workbook, make_xlsx_response
-from app.services.project_stats import ProjectStatsService
+from app.services.project_stats import (
+    EMPTY_STATS,
+    ProjectStatsService,
+    compute_stats_by_project,
+    count_by_project,
+)
 from app.services.sync_service import get_last_sync, log_sync, short_error
 
 
@@ -246,10 +252,27 @@ def project_delete(project_id):
     return safe_redirect(url_for("main.projects_list"))
 
 
+def _load_projects_export_data():
+    """
+    Загружает проекты и предвычисляет статистику для экспорта.
+
+    Один SQL на проекты (+ joinedload employee_roles), один на транзакции,
+    один на курсы.
+    """
+    projects = Project.active().options(joinedload(Project.employee_roles)).all()
+    transactions = Transaction.active().all()
+    codes = ProjectStatsService.collect_codes(transactions)
+    rates_map = get_rates_map(codes)
+    stats_map = compute_stats_by_project(transactions, rates_map)
+    tx_count_map = count_by_project(transactions)
+    return projects, stats_map, tx_count_map
+
+
 @main_bp.route("/projects/export")
 @login_required
 def export_projects_csv():
-    projects = Project.active().all()
+    projects, stats_map, tx_count_map = _load_projects_export_data()
+
     si = StringIO()
     writer = csv.writer(si, delimiter=";", quoting=csv.QUOTE_MINIMAL)
     writer.writerow(
@@ -266,17 +289,18 @@ def export_projects_csv():
         ]
     )
     for p in projects:
+        stats = stats_map.get(p.id, EMPTY_STATS)
         writer.writerow(
             [
                 p.id,
                 p.name,
                 p.description or "",
-                round(p.total_income, 2),
-                round(p.total_expense, 2),
-                round(p.profit, 2),
-                p.profitability,
-                len(p.employees),
-                p.transactions.filter_by(is_deleted=False).count(),
+                round(stats.total_income, 2),
+                round(stats.total_expense, 2),
+                round(stats.profit, 2),
+                stats.profitability,
+                len(p.employee_roles),
+                tx_count_map.get(p.id, 0),
             ]
         )
     csv_content = si.getvalue()
@@ -288,8 +312,8 @@ def export_projects_csv():
 @login_required
 def export_projects_xlsx():
     """Экспорт активных проектов в Excel (.xlsx)."""
-    projects = Project.active().all()
-    wb = build_projects_workbook(projects)
+    projects, stats_map, tx_count_map = _load_projects_export_data()
+    wb = build_projects_workbook(projects, stats_map, tx_count_map)
     return make_xlsx_response(wb, "projects_export.xlsx")
 
 

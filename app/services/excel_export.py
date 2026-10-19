@@ -11,6 +11,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from app.services.currency_service import convert_with_rates
+from app.services.project_stats import EMPTY_STATS, ProjectStats
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +60,18 @@ def _new_workbook() -> Workbook:
     return wb
 
 
-def build_projects_workbook(projects: list) -> Workbook:
-    """Workbook с листом «Проекты»."""
+def build_projects_workbook(
+    projects: list,
+    stats_map: dict[int, ProjectStats],
+    tx_count_map: dict[int, int],
+) -> Workbook:
+    """
+    Workbook с листом «Проекты».
+
+    stats_map и tx_count_map передаются извне — это позволяет
+    одним SQL-запросом загрузить транзакции и посчитать статистику
+    для всех проектов сразу, вместо property-запросов на каждый проект.
+    """
     wb = _new_workbook()
     ws = wb.create_sheet("Проекты")
 
@@ -80,17 +91,18 @@ def build_projects_workbook(projects: list) -> Workbook:
     )
 
     for p in projects:
+        stats = stats_map.get(p.id, EMPTY_STATS)
         ws.append(
             [
                 p.id,
                 p.name,
                 p.description or "",
-                round(p.total_income, 2),
-                round(p.total_expense, 2),
-                round(p.profit, 2),
-                p.profitability,
+                round(stats.total_income, 2),
+                round(stats.total_expense, 2),
+                round(stats.profit, 2),
+                stats.profitability,
                 len(p.employee_roles),
-                p.transactions.filter_by(is_deleted=False).count(),
+                tx_count_map.get(p.id, 0),
             ]
         )
 
