@@ -2,11 +2,30 @@
 Тесты маршрутов: доступ, CRUD, фильтры, экспорт.
 """
 
+import json
 from datetime import UTC, date, datetime, timedelta
 
 from app import db as _db
-from app.models import Employee, ExpenseCategory, IncomeCategory, Project, Transaction
+from app.models import (
+    Employee,
+    EmployeeProject,
+    ExpenseCategory,
+    IncomeCategory,
+    Project,
+    Transaction,
+)
 from app.services.currency_service import upsert_rates
+
+
+class FakeRate:
+    """Заглушка ScrapedRate для тестов конвертации валют (не поднимает Playwright)."""
+
+    def __init__(self, code, nominal, rate, rate_date):
+        self.code = code
+        self.nominal = nominal
+        self.rate = rate
+        self.rate_date = rate_date
+
 
 # ============================================================
 #   ОБЩИЕ СТРАНИЦЫ И ДОСТУП
@@ -59,8 +78,6 @@ def test_chart_returns_data(auth_client, app):
 
 def test_dashboard_ignores_transactions_of_deleted_projects(auth_client, app):
     """Транзакции удалённых проектов не учитываются на дашборде."""
-    from datetime import UTC, datetime
-
     with app.app_context():
         active_project = Project(name="Active")
         deleted_project = Project(name="Deleted", is_deleted=True)
@@ -171,6 +188,54 @@ def test_user_does_not_see_create_button(regular_client):
     assert "Создать проект" not in response.get_data(as_text=True)
 
 
+def test_admin_has_edit_button_in_transaction_row(auth_client, app):
+    """Для админа в строке есть кнопка редактирования."""
+    with app.app_context():
+        project = Project(name="P")
+        cat = IncomeCategory(name="C")
+        _db.session.add_all([project, cat])
+        _db.session.commit()
+
+        tx = Transaction(
+            project_id=project.id,
+            type="income",
+            category_id=cat.id,
+            amount=1000,
+        )
+        _db.session.add(tx)
+        _db.session.commit()
+        tx_id = tx.id
+
+    response = auth_client.get("/transactions")
+    text = response.get_data(as_text=True)
+
+    assert f"/transactions/{tx_id}/edit" in text
+
+
+def test_user_has_no_edit_button_in_transaction_row(regular_client, app):
+    """Для user в строке нет кнопки редактирования — роут защищён @admin_required."""
+    with app.app_context():
+        project = Project(name="P")
+        cat = IncomeCategory(name="C")
+        _db.session.add_all([project, cat])
+        _db.session.commit()
+
+        tx = Transaction(
+            project_id=project.id,
+            type="income",
+            category_id=cat.id,
+            amount=1000,
+        )
+        _db.session.add(tx)
+        _db.session.commit()
+        tx_id = tx.id
+
+    response = regular_client.get("/transactions")
+    text = response.get_data(as_text=True)
+
+    assert f"/transactions/{tx_id}/edit" not in text
+
+
 # ============================================================
 #   CRUD ПРОЕКТОВ
 # ============================================================
@@ -245,8 +310,6 @@ def test_deleted_project_not_in_dashboard(auth_client, app):
 
 def test_edit_employee_with_projects(auth_client, app):
     """Редактирование сотрудника с привязкой проектов через project_roles."""
-    import json
-
     with app.app_context():
         project1 = Project(name="Проект 1")
         project2 = Project(name="Проект 2")
@@ -276,8 +339,6 @@ def test_edit_employee_with_projects(auth_client, app):
     assert response.status_code == 200
 
     with app.app_context():
-        from app.models import EmployeeProject
-
         updated = _db.session.get(Employee, emp_id)
         assert len(updated.project_roles) == 2
         roles = {er.project_id: er.role for er in updated.project_roles}
@@ -303,8 +364,6 @@ def test_delete_employee(auth_client, app):
 
 def test_create_employee_with_project_roles(auth_client, app):
     """Создание сотрудника с привязкой проектов и ролями через project_roles."""
-    import json
-
     with app.app_context():
         project = Project(name="CRM")
         _db.session.add(project)
@@ -335,8 +394,6 @@ def test_create_employee_with_project_roles(auth_client, app):
 
 def test_create_employee_skips_entries_without_role(auth_client, app):
     """Записи без роли игнорируются при создании."""
-    import json
-
     with app.app_context():
         project = Project(name="CRM")
         _db.session.add(project)
@@ -374,8 +431,6 @@ def test_employee_list_filters_by_role(auth_client, app):
         _db.session.add_all([p, e1, e2])
         _db.session.commit()
 
-        from app.models import EmployeeProject
-
         _db.session.add_all(
             [
                 EmployeeProject(employee_id=e1.id, project_id=p.id, role="Разработчик"),
@@ -400,8 +455,6 @@ def test_api_roles_returns_unique_roles(auth_client, app):
         _db.session.add_all([p, e1, e2])
         _db.session.commit()
 
-        from app.models import EmployeeProject
-
         _db.session.add_all(
             [
                 EmployeeProject(employee_id=e1.id, project_id=p.id, role="Разработчик"),
@@ -421,8 +474,6 @@ def test_api_roles_returns_unique_roles(auth_client, app):
 
 def test_api_roles_updates_after_new_role(auth_client, app):
     """После создания сотрудника с новой ролью API возвращает её."""
-    import json
-
     with app.app_context():
         p = Project(name="P")
         _db.session.add(p)
@@ -568,8 +619,6 @@ def test_deleted_transaction_not_in_totals(auth_client, app):
 
 def test_transaction_create_rejects_deleted_project(auth_client, app):
     """Нельзя создать транзакцию для удалённого проекта."""
-    from datetime import UTC, datetime
-
     with app.app_context():
         project = Project(name="Удалённый", is_deleted=True)
         cat = IncomeCategory(name="Доход")
@@ -1013,14 +1062,6 @@ def test_export_transactions_csv(auth_client):
 
 def test_export_transactions_csv_includes_amount_rub(auth_client, app):
     """CSV-экспорт транзакций содержит колонку Сумма (RUB) в правильной позиции."""
-
-    class FakeRate:
-        def __init__(self, code, nominal, rate, rate_date):
-            self.code = code
-            self.nominal = nominal
-            self.rate = rate
-            self.rate_date = rate_date
-
     with app.app_context():
         upsert_rates([FakeRate("USD", 1, 84.50, date(2026, 9, 19))])
 
@@ -1069,14 +1110,6 @@ def test_export_transactions_csv_includes_amount_rub(auth_client, app):
 
 def test_dashboard_converts_usd_to_rub(auth_client, app):
     """Дашборд считает доход в рублях при USD-транзакции."""
-
-    class FakeRate:
-        def __init__(self, code, nominal, rate, rate_date):
-            self.code = code
-            self.nominal = nominal
-            self.rate = rate
-            self.rate_date = rate_date
-
     with app.app_context():
         upsert_rates([FakeRate("USD", 1, 84.50, date(2026, 9, 19))])
 
@@ -1106,14 +1139,6 @@ def test_dashboard_converts_usd_to_rub(auth_client, app):
 
 def test_dashboard_shows_currency_rates(auth_client, app):
     """Дашборд показывает актуальные курсы USD, EUR и CNY из БД."""
-
-    class FakeRate:
-        def __init__(self, code, nominal, rate, rate_date):
-            self.code = code
-            self.nominal = nominal
-            self.rate = rate
-            self.rate_date = rate_date
-
     with app.app_context():
         upsert_rates(
             [
