@@ -127,3 +127,17 @@ def test_login_wrong_password_preserves_next(app):
     assert "/login" in response.location
     assert "next=" in response.location
     assert "%2Fprojects%2F5" in response.location or "/projects/5" in response.location
+
+
+def test_user_can_see_create_transaction_button(regular_client):
+    """Обычный user видит кнопку «Добавить транзакцию» — роут открыт для @login_required."""
+    response = regular_client.get("/transactions")
+    assert response.status_code == 200
+    assert "Добавить транзакцию" in response.get_data(as_text=True)
+
+
+def test_admin_can_see_create_transaction_button(auth_client):
+    """Админ тоже видит кнопку — проверка, что мы не сломали обратную совместимость."""
+    response = auth_client.get("/transactions")
+    assert response.status_code == 200
+    assert "Добавить транзакцию" in response.get_data(as_text=True)
