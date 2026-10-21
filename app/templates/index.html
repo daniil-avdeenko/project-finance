@@ -64,8 +64,8 @@
         <div class="position-relative d-inline-flex align-items-stretch">
             {% if sheets_url %}
             <a href="{{ sheets_url }}" target="_blank" rel="noopener"
-               class="btn btn-outline-secondary btn-sm"
-               style="min-width: 92px; border-top-right-radius: 0; border-bottom-right-radius: 0;"
+               class="btn btn-outline-success btn-sm"
+               style="min-width: 92px;{% if current_user.is_admin() %} border-top-right-radius: 0; border-bottom-right-radius: 0;{% endif %}"
                title="Открыть Google Sheets">
                 <i class="fas fa-file-excel me-1"></i>Sheets
             </a>
@@ -91,7 +91,7 @@
             {% endif %}
         </div>
 
-        <a href="{{ url_for('main.chart') }}" class="btn btn-outline-primary btn-sm">
+        <a href="{{ url_for('main.chart') }}" class="btn btn-outline-dark btn-sm">
             <i class="fas fa-chart-line me-1"></i>График
         </a>
         <a href="{{ url_for('main.project_create', next=request.path) }}" class="btn btn-primary btn-sm">
