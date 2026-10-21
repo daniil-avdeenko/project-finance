@@ -101,6 +101,15 @@ def test_dashboard_ignores_transactions_of_deleted_projects(auth_client, app):
     assert "5 000" not in text
 
 
+def test_dashboard_has_telegram_bot_link(auth_client):
+    """На дашборде есть ссылка на Telegram-бот с AI-ассистентом."""
+    response = auth_client.get("/")
+    text = response.get_data(as_text=True)
+
+    assert "t.me/project_finance_agent_bot" in text
+    assert "AI-бот" in text
+
+
 # ============================================================
 #   СПИСКИ ДЛЯ АДМИНА
 # ============================================================
