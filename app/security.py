@@ -8,9 +8,14 @@ import re
 
 from flask import Flask, Response
 
-# CSP под наш стек: Bootstrap, Font Awesome, Chart.js с CDN + inline-скрипты
-# в шаблонах. unsafe-inline ослабляет защиту, но без nonce сломает UI.
-CSP = (
+# Базовая CSP — то, что нужно всегда.
+# upgrade-insecure-requests — отдельно: имеет смысл только когда приложение
+# реально обслуживается по HTTPS. В dev при доступе с телефона по HTTP
+# (192.168.x.x) эта директива апгрейдит form submissions до HTTPS, которые
+# падают (нет TLS-сервера), и POST /login вообще не доходит до gunicorn.
+# На localhost / 127.0.0.1 браузер её игнорирует — поэтому на десктопе
+# проблема незаметна.
+CSP_BASE = (
     "default-src 'self'; "
     "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
     "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
@@ -19,9 +24,15 @@ CSP = (
     "connect-src 'self'; "
     "frame-ancestors 'self'; "
     "base-uri 'self'; "
-    "form-action 'self'; "
-    "upgrade-insecure-requests"
+    "form-action 'self'"
 )
+
+CSP_UPGRADE = "; upgrade-insecure-requests"
+
+
+def _build_csp(include_upgrade: bool) -> str:
+    """Собирает CSP, добавляя upgrade-insecure-requests только для HTTPS-окружений."""
+    return CSP_BASE + (CSP_UPGRADE if include_upgrade else "")
 
 
 def register_security_headers(app: Flask) -> None:
@@ -35,7 +46,11 @@ def register_security_headers(app: Flask) -> None:
         response.headers.setdefault(
             "Permissions-Policy", "geolocation=(), microphone=(), camera=()"
         )
-        response.headers.setdefault("Content-Security-Policy", CSP)
+        # SESSION_COOKIE_SECURE — прокси для «мы работаем по HTTPS».
+        # Если cookies требуют Secure, значит страницы обслуживаются по TLS,
+        # и upgrade-insecure-requests имеет смысл. В dev (HTTP) — нет.
+        include_upgrade = bool(app.config.get("SESSION_COOKIE_SECURE", True))
+        response.headers.setdefault("Content-Security-Policy", _build_csp(include_upgrade))
         return response
 
 

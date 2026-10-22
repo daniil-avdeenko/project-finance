@@ -63,7 +63,12 @@ def create_app():
         app.logger.warning("SECRET_KEY не установлен, используется dev-значение")
 
     app.config["SECRET_KEY"] = secret_key
-    app.config["SESSION_COOKIE_SECURE"] = flask_env == "production"
+    # Secure cookie по умолчанию — только в production (HTTPS). В dev можно
+    # переопределить через SESSION_COOKIE_SECURE=false.
+    _secure_default = "true" if flask_env == "production" else "false"
+    app.config["SESSION_COOKIE_SECURE"] = (
+        os.getenv("SESSION_COOKIE_SECURE", _secure_default).lower() == "true"
+    )
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
     # Не escape'ить кириллицу в {{ x | tojson }} — иначе на клиенте
