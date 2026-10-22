@@ -59,24 +59,24 @@
 
 <div class="list-group" id="employeeList">
     {% for employee in employees %}
-    <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center employee-row"
+           <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-start gap-2 employee-row"
          style="cursor: pointer; transition: 0.2s; padding: 1rem 1.25rem;"
          data-url="{{ url_for('main.employee_detail', employee_id=employee.id, next=request.full_path.rstrip('?')) }}">
 
-        <div class="flex-grow-1 me-3">
+        <div class="flex-grow-1" style="min-width: 0;">
             <div class="d-flex flex-wrap align-items-center gap-2">
                 <span class="fw-semibold">{{ employee.name }}</span>
                 {% for role in employee.roles %}
                 <span class="badge bg-secondary">{{ role }}</span>
                 {% endfor %}
-                <span class="text-muted">Кол-во проектов: {{ employee.project_roles|length }}</span>
+                <span class="text-muted small">Кол-во проектов: {{ employee.project_roles|length }}</span>
             </div>
         </div>
 
         {% if current_user.is_admin() %}
-        <div>
+        <div class="d-flex gap-1 flex-shrink-0">
             <a href="{{ url_for('main.employee_edit', employee_id=employee.id, next=request.full_path.rstrip('?')) }}"
-               class="btn btn-sm btn-outline-secondary me-1" title="Редактировать" onclick="event.stopPropagation();">
+               class="btn btn-sm btn-outline-secondary" title="Редактировать" onclick="event.stopPropagation();">
                 <i class="fas fa-pen"></i>
             </a>
             <form method="post"
