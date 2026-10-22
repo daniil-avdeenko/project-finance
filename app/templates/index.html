@@ -8,7 +8,7 @@
         <h1 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Дашборд</h1>
 
         {% if usd_rate or eur_rate or cny_rate %}
-        <div class="d-flex align-items-center gap-3 text-muted small border-start ps-3">
+        <div class="dashboard-rates d-flex align-items-center gap-3 text-muted small border-start ps-3">
             {% if usd_rate %}
             <span title="Курс ЦБ на {{ usd_rate.rate_date }}">
                 <i class="fas fa-dollar-sign me-1"></i>{{ usd_rate.rate_rub|money }} ₽
@@ -39,7 +39,7 @@
                     <option value="all" {% if selected_month is none %}selected{% endif %}>Весь период</option>
                     {% for m in months %}
                     <option value="{{ m.month }}" data-year="{{ m.year }}"
-                            {% if m.month== selected_month and m.year== selected_year %}selected{% endif %}>
+                            {% if m.month == selected_month and m.year == selected_year %}selected{% endif %}>
                         {{ m.label }}
                     </option>
                     {% endfor %}
@@ -101,53 +101,44 @@
 </div>
 
 <!-- Карточки статистики -->
-<div class="row g-4 mb-4">
-    <div class="col-md-3">
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-lg-3">
         <div class="stat-card bg-gradient-primary">
-            <div class="d-flex justify-content-between">
-                <div>
-                    <h6 class="text-uppercase fw-light">Проекты</h6>
-                    <h2 style="font-size: 1.6rem;">{{ total_projects }}</h2>
-                </div>
-                <i class="fas fa-folder-open stat-icon"></i>
+            <i class="fas fa-folder-open stat-icon"></i>
+            <div class="stat-content">
+                <h6 class="text-uppercase fw-light">Проекты</h6>
+                <h2>{{ total_projects }}</h2>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-12 col-sm-6 col-lg-3">
         <div class="stat-card bg-gradient-success">
-            <div class="d-flex justify-content-between">
-                <div>
-                    <h6 class="text-uppercase fw-light">Доходы</h6>
-                    <h2 style="font-size: 1.6rem;">{{ total_income|money }} ₽</h2>
-                </div>
-                <i class="fas fa-arrow-up stat-icon"></i>
+            <i class="fas fa-arrow-up stat-icon"></i>
+            <div class="stat-content">
+                <h6 class="text-uppercase fw-light">Доходы</h6>
+                <h2>{{ total_income|money }} ₽</h2>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-12 col-sm-6 col-lg-3">
         <div class="stat-card bg-gradient-danger">
-            <div class="d-flex justify-content-between">
-                <div>
-                    <h6 class="text-uppercase fw-light">Расходы</h6>
-                    <h2 style="font-size: 1.6rem;">{{ total_expense|money }} ₽</h2>
-                </div>
-                <i class="fas fa-arrow-down stat-icon"></i>
+            <i class="fas fa-arrow-down stat-icon"></i>
+            <div class="stat-content">
+                <h6 class="text-uppercase fw-light">Расходы</h6>
+                <h2>{{ total_expense|money }} ₽</h2>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-12 col-sm-6 col-lg-3">
         <div class="stat-card bg-gradient-warning">
-            <div class="d-flex justify-content-between">
-                <div>
-                    <h6 class="text-uppercase fw-light">
-                        Прибыль
-                        <span style="font-size: 0.7rem; font-weight: normal;">({{ period_label }})</span>
-                    </h6>
-                    <h2 style="font-size: 1.6rem;">{{ total_profit|money }} ₽</h2>
-                    <small style="font-size: 0.8rem;">Рентабельность {{ "{:.1f}".format(overall_profitability)
-                        }}%</small>
-                </div>
-                <i class="fas fa-coins stat-icon"></i>
+            <i class="fas fa-coins stat-icon"></i>
+            <div class="stat-content">
+                <h6 class="text-uppercase fw-light">
+                    Прибыль
+                    <span class="period-label">({{ period_label }})</span>
+                </h6>
+                <h2>{{ total_profit|money }} ₽</h2>
+                <small class="profitability-label">Рентабельность {{ "{:.1f}".format(overall_profitability) }}%</small>
             </div>
         </div>
     </div>
