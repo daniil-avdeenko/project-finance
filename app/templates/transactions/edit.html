@@ -44,15 +44,14 @@
         {{ form.description(class="form-control", rows=3) }}
     </div>
 
-    <div class="row mb-3 align-items-end">
-        <div class="col-md-6">
-            {{ form.date.label(class="form-label") }}
-            {{ form.date(class="form-control", type="datetime-local") }}
-        </div>
-        <div class="col-md-6 d-flex justify-content-end gap-2">
-            <button type="submit" class="btn btn-success">💾 Сохранить изменения</button>
-            <a href="{{ next_url }}" class="btn btn-secondary">Отмена</a>
-        </div>
+    <div class="mb-3">
+        {{ form.date.label(class="form-label") }}
+        {{ form.date(class="form-control", type="datetime-local") }}
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-success">💾 Сохранить изменения</button>
+        <a href="{{ next_url }}" class="btn btn-secondary">Отмена</a>
     </div>
 </form>
 
