@@ -268,6 +268,8 @@ h1 {
     white-space: nowrap;
     mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 30px), transparent 100%);
     -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 30px), transparent 100%);
+    flex: 1;
+    min-width: 0;
 }
 
 .project-title > span {
@@ -412,4 +414,100 @@ h1 {
     position: relative;
     width: 100%;
     height: clamp(280px, 45vh, 480px);
+}
+
+
+/* ============================================================
+   Project detail универсальная шапка страницы.
+   ============================================================ */
+.project-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+
+.project-header-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+}
+
+@media (max-width: 767px) {
+    .project-header-row {
+        flex-wrap: wrap;
+    }
+
+    .project-header-actions {
+        flex-basis: 100%;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+}
+
+
+/* ============================================================
+   Employees detail универсальная шапка страницы (header + actions).
+   ============================================================ */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.page-header-title {
+    flex: 1;
+    min-width: 0;
+}
+
+.page-header-title h1 {
+    /* Переопределяет глобальный h1 { white-space: nowrap } из commit 1 */
+    white-space: normal;
+    margin: 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.page-header-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+}
+
+@media (max-width: 767px) {
+    .page-header {
+        flex-wrap: wrap;
+    }
+
+    .page-header-actions {
+        flex-basis: 100%;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+}
+
+/* ============================================================
+   Employee detail — блок «Проекты».
+   ============================================================ */
+.employee-project-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.employee-project-link {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.employee-project-role {
+    flex-shrink: 0;
+    margin-left: auto;
 }
