@@ -14,28 +14,33 @@
 
 <div class="row">
     <div class="col-12 col-lg-3">
-        <div class="card">
-            <div class="card-header">
-                <h5>Проекты</h5>
-            </div>
-            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="selectAll" checked>
-                    <label class="form-check-label" for="selectAll">Выбрать все</label>
+        <details class="chart-filter-accordion" open>
+            <summary class="chart-filter-summary">
+                <span class="chart-filter-label">
+                    <i class="fas fa-filter me-2"></i>Проекты
+                    <span class="badge bg-primary rounded-pill ms-2">{{ projects_data|length }}</span>
+                </span>
+            </summary>
+            <div class="card mb-3">
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="selectAll" checked>
+                        <label class="form-check-label" for="selectAll">Выбрать все</label>
+                    </div>
+                    <hr>
+                    {% for project in projects_data %}
+                    <div class="form-check">
+                        <input class="form-check-input project-checkbox" type="checkbox" id="proj{{ project.id }}"
+                               value="{{ project.id }}" checked>
+                        <label class="form-check-label" for="proj{{ project.id }}">
+                            <span style="display:inline-block; width:12px; height:12px; background-color: {{ project.color }}; border-radius:50%;"></span>
+                            {{ project.name }}
+                        </label>
+                    </div>
+                    {% endfor %}
                 </div>
-                <hr>
-                {% for project in projects_data %}
-                <div class="form-check">
-                    <input class="form-check-input project-checkbox" type="checkbox" id="proj{{ project.id }}"
-                           value="{{ project.id }}" checked>
-                    <label class="form-check-label" for="proj{{ project.id }}">
-                        <span style="display:inline-block; width:12px; height:12px; background-color: {{ project.color }}; border-radius:50%;"></span>
-                        {{ project.name }}
-                    </label>
-                </div>
-                {% endfor %}
             </div>
-        </div>
+        </details>
     </div>
     <div class="col-12 col-lg-9">
         <div class="card">
@@ -51,8 +56,15 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     const ctx = document.getElementById('profitChart').getContext('2d');
-    const monthLabels = {{ month_labels | tojson }};
-    const projectsData = {{ projects_data | tojson }};
+     // На мобильных по умолчанию список проектов свёрнут — график
+    // виден сразу. На десктопе оставляем открытым (<details open>).
+    // Если пользователь сам свернул/развернул — его выбор сохраняется.
+    if (window.matchMedia('(max-width: 991px)').matches) {
+        const acc = document.querySelector('.chart-filter-accordion');
+        if (acc) acc.open = false;
+    }
+        const monthLabels = {{ month_labels|tojson }};
+    const projectsData = {{ projects_data|tojson }};
 
     const datasets = projectsData.map(project => ({
         label: project.name,

@@ -340,6 +340,53 @@ h1 {
     height: clamp(280px, 45vh, 480px);
 }
 
+/* Chart filter accordion.
+   На десктопе <summary> скрыт, <details open> в HTML всегда раскрыт —
+   список чекбоксов виден на месте. На мобилке <summary> становится
+   кликабельной строкой с шевроном, по клику сворачивает список. */
+.chart-filter-summary {
+    display: none;
+}
+
+@media (max-width: 991px) {
+    .chart-filter-summary {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        cursor: pointer;
+        margin-bottom: 0.5rem;
+        list-style: none;
+        font-weight: 500;
+    }
+
+    .chart-filter-summary::-webkit-details-marker {
+        display: none;
+    }
+
+    /* Шеврон-индикатор раскрытия; поворачивается на 180° при open */
+    .chart-filter-summary::after {
+        content: "\f078"; /* fa-chevron-down */
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+        font-size: 0.75rem;
+        color: #6c757d;
+        transition: transform 0.2s;
+    }
+
+    .chart-filter-accordion[open] > .chart-filter-summary::after {
+        transform: rotate(180deg);
+    }
+
+    .chart-filter-accordion[open] > .chart-filter-summary {
+        margin-bottom: 0.75rem;
+    }
+}
+
 
 /* ============================================================
    7. Page headers (project detail и employee detail)
