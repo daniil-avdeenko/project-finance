@@ -511,3 +511,73 @@ h1 {
     flex-shrink: 0;
     margin-left: auto;
 }
+
+
+/* ============================================================
+   Mobile dashboard header (≤767px).
+   ============================================================ */
+@media (max-width: 767px) {
+    .dashboard-header {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "title"
+            "calendar"
+            "buttons";
+        gap: 1rem;
+    }
+
+    .dashboard-title {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .dashboard-rates {
+        border-start: none !important;
+        padding-left: 0 !important;
+        padding-top: 0.5rem;
+        border-top: 1px solid #dee2e6;
+        width: 100%;
+    }
+
+    .dashboard-calendar {
+        justify-self: stretch;
+    }
+
+    .dashboard-calendar .input-group {
+        width: 100% !important;
+    }
+
+    .dashboard-calendar .form-select {
+        flex: 1;
+    }
+
+    .dashboard-buttons {
+        justify-self: start;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        width: 100%;
+        /* row-gap > высоты timestamp (top: 100% от Sheets-кнопки),
+           иначе «22.10 12:10» наезжает на «+ Проект» во втором ряду */
+        row-gap: 1.75rem;
+        column-gap: 0.5rem;
+    }
+
+    .dashboard-buttons > * {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Блок Sheets+sync: anchor растягивается на остаток ячейки
+       (flex: 1), кнопка синка занимает натуральную ширину (~40px).
+       Под user (без sync) якорь один → flex: 1 растягивает его на
+       100% ячейки. В итоге группа Sheets+sync визуально совпадает
+       по ширине с «+ Проект». */
+    .dashboard-buttons .position-relative {
+        width: 100%;
+    }
+
+    .dashboard-buttons .position-relative > a {
+        flex: 1;
+    }
+}
