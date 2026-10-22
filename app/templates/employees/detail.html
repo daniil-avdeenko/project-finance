@@ -24,7 +24,7 @@
             </button>
         </form>
         {% endif %}
-        <a href="{{ back_url }}" class="btn btn-outline-secondary">← Назад</a>
+        <a href="{{ back_url }}" class="btn btn-outline-secondary d-none d-md-inline-block">← Назад</a>
     </div>
 </div>
 
@@ -48,16 +48,18 @@
                 <h5 class="mb-0"><i class="fas fa-project-diagram me-2"></i>Проекты</h5>
                 <span class="badge bg-primary rounded-pill">{{ employee.project_roles|length }}</span>
             </div>
-            <div class="card-body p-0">
-                <ul class="list-group list-group-flush">
+                        <div class="card-body p-0">
+                <ul class="list-group list-group-flush relation-list">
                     {% for er in employee.project_roles %}
-                    <li class="list-group-item employee-project-row">
+                    <li class="list-group-item p-0 relation-item">
                         <a href="{{ url_for('main.project_detail', project_id=er.project.id) }}"
-                           class="text-decoration-none employee-project-link">
-                            <i class="fas fa-folder-open text-primary me-2"></i>
-                            <span class="fw-semibold">{{ er.project.name }}</span>
+                           class="relation-row-link">
+                            <span class="relation-row-name">
+                                <i class="fas fa-folder-open text-primary me-2"></i>
+                                {{ er.project.name }}
+                            </span>
+                            <span class="badge bg-secondary">{{ er.role }}</span>
                         </a>
-                        <span class="badge bg-secondary employee-project-role">{{ er.role }}</span>
                     </li>
                     {% else %}
                     <li class="list-group-item text-muted">Нет проектов</li>

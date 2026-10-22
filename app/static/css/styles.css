@@ -1,4 +1,6 @@
-/* Общие стили */
+/* ============================================================
+   1. Общие стили
+   ============================================================ */
 body {
     background: #f4f6f9;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -16,16 +18,9 @@ body {
     box-shadow: 0 12px 28px rgba(0,0,0,0.10);
 }
 
+
 /* ============================================================
-   Градиентные карточки статистики.
-   ------------------------------------------------------------
-   Структура: .stat-card > .stat-icon (absolute) + .stat-content.
-   Иконка в правом верхнем углу через position: absolute — не
-   конкурирует с числом за горизонтальное место. На <1200px
-   иконка скрыта, контент получает всю ширину, чтобы длинные
-   суммы (162 616 834,60 ₽) помещались без обрезки.
-   Шрифт через clamp(): масштабируется с viewport. Суммы не
-   обрезаются многоточием — это главные показатели дашборда.
+   2. Stat-cards (главная и project detail).
    ============================================================ */
 .stat-card {
     color: #fff;
@@ -102,25 +97,20 @@ body {
     text-overflow: ellipsis;
 }
 
-/* Курсы в шапке дашборда: «84,50 ₽» — единое целое, не рвётся на ₽ */
-.dashboard-rates > span {
-    white-space: nowrap;
-}
+.bg-gradient-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.bg-gradient-success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+.bg-gradient-danger  { background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); }
+.bg-gradient-warning { background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%); }
+
+.text-bg-success { background-color: #198754 !important; color: #fff !important; }
+.text-bg-danger  { background-color: #dc3545 !important; color: #fff !important; }
+.text-bg-primary { background-color: #0d6efd !important; color: #fff !important; }
+.text-bg-info    { background-color: #0dcaf0 !important; color: #000 !important; }
+.text-bg-warning { background-color: #ffc107 !important; color: #000 !important; }
+
 
 /* ============================================================
-   Дашборд: раскладка шапки (title + calendar + buttons).
-   ------------------------------------------------------------
-   Grid вместо flex-wrap: flex-wrap переставляет блоки по одному
-   справа налево — получается каша из отдельных кнопок. Grid
-   даёт строгий порядок через grid-template-areas.
-
-   Раскладка:
-   - Wide (>1100px): одна строка [title+rates] [calendar] [buttons].
-   - Narrow (≤1100px): две строки —
-     row 1: [title+rates] .......... [calendar]
-     row 2: ................ [all buttons] (по правому краю)
-   Шрифты и padding не уменьшаются — размеры одинаковы во всех
-   режимах, ничего не сжимается при зуме.
+   3. Dashboard header.
    ============================================================ */
 .dashboard-header {
     display: grid;
@@ -154,7 +144,6 @@ body {
     flex-wrap: wrap;
 }
 
-/* 2-row mode: title+calendar в строке 1, buttons справа в строке 2 */
 @media (max-width: 1100px) {
     .dashboard-header {
         grid-template-columns: 1fr auto;
@@ -164,39 +153,28 @@ body {
         gap: 0.5rem;
     }
 
-    .dashboard-title {
-        justify-self: start;
-    }
-
-    .dashboard-calendar {
-        justify-self: end;
-    }
-
-    .dashboard-buttons {
-        justify-self: end;
-    }
+    .dashboard-title { justify-self: start; }
+    .dashboard-calendar { justify-self: end; }
+    .dashboard-buttons { justify-self: end; }
 }
 
-/* ============================================================
-   Responsive / zoom behavior
-   ============================================================ */
 
-/* Навбар: ссылки в одну строку, иконка и текст не разрываются */
+/* ============================================================
+   4. Responsive / zoom behavior (base)
+   ============================================================ */
 .navbar .nav-link {
     white-space: nowrap;
 }
 
-/* h1 с иконкой: иконка и текст всегда в одной строке */
+/* h1 с иконкой: иконка и текст в одной строке. */
 h1 {
     white-space: nowrap;
 }
 
-/* Кнопки не разрывают текст на две строки */
 .btn {
     white-space: nowrap;
 }
 
-/* Список с hover-эффектом */
 .list-group-item-action {
     transition: background-color 0.2s, box-shadow 0.2s;
 }
@@ -205,47 +183,14 @@ h1 {
     box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }
 
-.card .position-absolute .btn-link {
-    color: inherit;
-}
-.card .position-absolute .btn-link:hover {
-    opacity: 0.7;
-}
+.card .position-absolute .btn-link { color: inherit; }
+.card .position-absolute .btn-link:hover { opacity: 0.7; }
 
-.bg-gradient-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-.bg-gradient-success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
-.bg-gradient-danger  { background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); }
-.bg-gradient-warning { background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%); }
-
-/* Цветные карточки для страницы деталей проекта (доходы, расходы, прибыль, рентабельность) */
-.text-bg-success {
-    background-color: #198754 !important;
-    color: #fff !important;
-}
-.text-bg-danger {
-    background-color: #dc3545 !important;
-    color: #fff !important;
-}
-.text-bg-primary {
-    background-color: #0d6efd !important;
-    color: #fff !important;
-}
-.text-bg-info {
-    background-color: #0dcaf0 !important;
-    color: #000 !important;
-}
-.text-bg-warning {
-    background-color: #ffc107 !important;
-    color: #000 !important;
-}
-
-/* Навбар */
 .navbar-dark.bg-dark {
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%) !important;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
-/* Кнопки */
 .btn-primary {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border: none;
@@ -255,14 +200,16 @@ h1 {
     transform: scale(1.02);
 }
 
-/* Бейджи */
 .badge {
     font-weight: 500;
     padding: 0.4rem 0.8rem;
     border-radius: 30px;
 }
 
-/* Плавный скролл длинного названия проекта при наведении */
+
+/* ============================================================
+   5. Project title marquee, project cards, toast
+   ============================================================ */
 .project-title {
     overflow: hidden;
     white-space: nowrap;
@@ -282,7 +229,7 @@ h1 {
     transition: transform var(--scroll-duration, 2s) linear;
     transform: translateX(calc(-1 * var(--scroll-distance, 0px)));
 }
-/* Модалка удаления: длинное имя объекта не должно вылезать за границы */
+
 #deleteObjectName {
     overflow-wrap: anywhere;
     word-break: break-word;
@@ -293,7 +240,7 @@ h1 {
 .modal-body {
     overflow-wrap: anywhere;
 }
-/* Карточки проектов на дашборде: одинаковая высота, ограничение строк */
+
 .project-card {
     min-height: 230px;
     width: 100%;
@@ -304,7 +251,6 @@ h1 {
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    /* Резерв под 2 строки — заголовки выравниваются даже если текст короткий */
     min-height: 3rem;
     line-height: 1.5rem;
     margin-bottom: 0.75rem;
@@ -315,20 +261,15 @@ h1 {
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    /* flex-grow-1 заполняет пространство, line-clamp режет длинный текст */
 }
 
-/* Строка проекта в режиме редактирования */
 .entries-list .list-group-item.editing-entry {
     background-color: #fff8e1;
     border-left: 4px solid #ffc107;
 }
 
-/* Toast-уведомления (общие для форм) */
 .toast-container {
     position: fixed;
-    /* Навбар ~56px + margin-top контейнера страницы ~24px +
-       выравнивание с заголовком h1 ~16px */
     top: 6rem;
     right: 2rem;
     z-index: 1100;
@@ -339,9 +280,7 @@ h1 {
     pointer-events: none;
 }
 
-.toast-container > * {
-    pointer-events: auto;
-}
+.toast-container > * { pointer-events: auto; }
 
 .custom-toast {
     background: #fff;
@@ -356,29 +295,20 @@ h1 {
     color: #212529;
 }
 
-.custom-toast.show {
-    opacity: 1;
-    transform: translateX(0);
-}
+.custom-toast.show { opacity: 1; transform: translateX(0); }
+.custom-toast-error   { border-left-color: #dc3545; }
+.custom-toast-info    { border-left-color: #0d6efd; }
+.custom-toast-success { border-left-color: #198754; }
 
-.custom-toast-error {
-    border-left-color: #dc3545;
-}
-
-.custom-toast-info {
-    border-left-color: #0d6efd;
-}
-.custom-toast-success {
-    border-left-color: #198754;
-}
-
-/* Кнопки интеграций на дашборде — одинаковая ширина */
 .dashboard-btn {
     min-width: 125px;
     text-align: center;
 }
 
-/* Chart page header: кнопка «Назад» всегда на первой строке справа */
+
+/* ============================================================
+   6. Chart: header + wrapper
+   ============================================================ */
 .chart-header {
     display: flex;
     justify-content: space-between;
@@ -392,7 +322,6 @@ h1 {
 }
 
 .chart-header-title h1 {
-    /* Переопределяет глобальный h1 { white-space: nowrap } из commit 1 */
     white-space: normal;
     margin: 0;
     overflow-wrap: break-word;
@@ -402,74 +331,89 @@ h1 {
 .chart-header > .btn {
     flex-shrink: 0;
     white-space: nowrap;
-    /* Визуальное центрирование относительно первой строки h1.
-       h1 line-height ≈ 1.2 × font-size, btn-sm высота ≈ 31px.
-       margin-top компенсирует разницу. */
     margin-top: 0.3rem;
 }
 
-/* Chart wrapper: canvas растягивается на всю ширину карточки,
-   высота фиксированная и адаптивная к viewport. */
 .chart-wrapper {
     position: relative;
     width: 100%;
     height: clamp(280px, 45vh, 480px);
 }
 
+/* Chart filter accordion.
+   На десктопе <summary> скрыт, <details open> в HTML всегда раскрыт —
+   список чекбоксов виден на месте. На мобилке <summary> становится
+   кликабельной строкой с шевроном, по клику сворачивает список. */
+.chart-filter-summary {
+    display: none;
+}
+
+@media (max-width: 991px) {
+    .chart-filter-summary {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        cursor: pointer;
+        margin-bottom: 0.5rem;
+        list-style: none;
+        font-weight: 500;
+    }
+
+    .chart-filter-summary::-webkit-details-marker {
+        display: none;
+    }
+
+    /* Шеврон-индикатор раскрытия; поворачивается на 180° при open */
+    .chart-filter-summary::after {
+        content: "\f078"; /* fa-chevron-down */
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+        font-size: 0.75rem;
+        color: #6c757d;
+        transition: transform 0.2s;
+    }
+
+    .chart-filter-accordion[open] > .chart-filter-summary::after {
+        transform: rotate(180deg);
+    }
+
+    .chart-filter-accordion[open] > .chart-filter-summary {
+        margin-bottom: 0.75rem;
+    }
+}
+
 
 /* ============================================================
-   Project detail универсальная шапка страницы.
+   7. Page headers (project detail и employee detail)
    ============================================================ */
-.project-header-row {
+.project-header-row,
+.page-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 1rem;
 }
 
-.project-header-actions {
-    display: flex;
-    gap: 0.5rem;
-    flex-shrink: 0;
-    flex-wrap: nowrap;
-}
-
-@media (max-width: 767px) {
-    .project-header-row {
-        flex-wrap: wrap;
-    }
-
-    .project-header-actions {
-        flex-basis: 100%;
-        justify-content: flex-end;
-        flex-wrap: wrap;
-    }
-}
-
-
-/* ============================================================
-   Employees detail универсальная шапка страницы (header + actions).
-   ============================================================ */
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 1rem;
-}
-
+.project-header-title,
 .page-header-title {
     flex: 1;
     min-width: 0;
 }
 
+.project-header-title h1,
 .page-header-title h1 {
-    /* Переопределяет глобальный h1 { white-space: nowrap } из commit 1 */
     white-space: normal;
     margin: 0;
     overflow-wrap: break-word;
     word-break: break-word;
 }
 
+.project-header-actions,
 .page-header-actions {
     display: flex;
     gap: 0.5rem;
@@ -477,20 +421,9 @@ h1 {
     flex-wrap: nowrap;
 }
 
-@media (max-width: 767px) {
-    .page-header {
-        flex-wrap: wrap;
-    }
-
-    .page-header-actions {
-        flex-basis: 100%;
-        justify-content: flex-end;
-        flex-wrap: wrap;
-    }
-}
 
 /* ============================================================
-   Employee detail — блок «Проекты».
+   8. Employee detail — блок «Проекты»
    ============================================================ */
 .employee-project-row {
     display: flex;
@@ -510,4 +443,508 @@ h1 {
 .employee-project-role {
     flex-shrink: 0;
     margin-left: auto;
+}
+
+
+/* ============================================================
+   9. Списки: транзакции и проекты.
+   ------------------------------------------------------------
+   Desktop (≥768px, современные браузеры): CSS subgrid.
+   #transactionList — единая grid-сетка на весь список. Каждая
+   карточка наследует её колонки через grid-template-columns:
+   subgrid. Колонки синхронизированы между строками —
+   категория/описание в разных строках начинаются на одной
+   X-координате.
+
+   Named areas (grid-area) в subgrid-режиме НЕ заданы —
+   работаем на auto-placement: дочерние элементы идут в порядке
+   DOM, попадают в колонки 1..7.
+
+   Fallback и мобилка — ниже, там явный grid-template-areas и
+   grid-area на дочерних.
+   ============================================================ */
+#transactionList {
+    display: grid;
+    grid-template-columns:
+        max-content       /* date */
+        max-content       /* type */
+        max-content       /* amount */
+        minmax(0, 30ch)   /* project — до 40 символов */
+        minmax(0, 25ch)   /* category — до 30 символов */
+        minmax(0, 1fr)    /* description — всё оставшееся */
+        max-content;      /* actions */
+    row-gap: 0.5rem;
+    column-gap: 0.75rem;
+    background: transparent;
+}
+
+#transactionList > .transaction-row-mobile {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    align-items: center;
+    padding: 0.75rem 1.25rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    transition: box-shadow 0.2s;
+}
+
+#transactionList > .transaction-row-mobile:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Блок «Нет транзакций» — растянуть на все колонки */
+#transactionList > .list-group-item:not(.transaction-row-mobile) {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 1rem;
+    color: #6c757d;
+}
+
+/* ---------- Визуальные стили ячеек (без grid-area) ---------- */
+.transaction-date {
+    display: flex;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.transaction-type-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem 0.65rem;
+    border-radius: 30px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #fff;
+    white-space: nowrap;
+    min-height: 26px;
+    justify-self: start;
+}
+
+.transaction-amount {
+    font-size: 1rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.transaction-project,
+.transaction-category,
+.transaction-description {
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.transaction-project     { color: #212529; }
+.transaction-category    { color: #6c757d; }
+.transaction-description { color: #6c757d; }
+
+.transaction-actions {
+    display: flex;
+    gap: 0.25rem;
+    flex-shrink: 0;
+    justify-self: end;
+}
+
+.transaction-icon-btn,
+.project-icon-btn {
+    min-height: 28px;
+    min-width: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.2rem 0.45rem;
+    font-size: 0.75rem;
+}
+
+/* ---------- Fallback: браузеры без subgrid (desktop only) ---------- */
+@supports not (grid-template-columns: subgrid) {
+    @media (min-width: 768px) {
+        #transactionList {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        #transactionList > .transaction-row-mobile {
+            display: grid;
+            grid-template-columns:
+                auto auto auto
+                minmax(0, 40ch) minmax(0, 30ch) minmax(0, 1fr)
+                auto;
+            grid-template-areas: "date type amount project category description actions";
+            gap: 0.75rem;
+        }
+
+        .transaction-date        { grid-area: date; }
+        .transaction-type-badge  { grid-area: type; }
+        .transaction-amount      { grid-area: amount; }
+        .transaction-project     { grid-area: project; }
+        .transaction-category    { grid-area: category; }
+        .transaction-description { grid-area: description; }
+        .transaction-actions     { grid-area: actions; }
+    }
+}
+
+/* ---------- Проекты (без subgrid, они и не нуждаются) ---------- */
+#projectList {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background: transparent;
+}
+
+#projectList > .list-group-item {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    padding: 1rem 1.25rem;
+    transition: box-shadow 0.2s;
+}
+
+#projectList > .list-group-item:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.project-row-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.project-mobile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.project-mobile-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 1rem;
+    line-height: 1.3;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.project-mobile-actions {
+    display: flex;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
+
+.project-mobile-desc {
+    font-size: 0.9rem;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.project-mobile-badges {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+
+/* ============================================================
+   10. MOBILE (≤767px) — все переопределения для мобильных устройств.
+   ============================================================ */
+@media (max-width: 767px) {
+    /* ----- Dashboard header: grid в одну колонку ----- */
+    .dashboard-header {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "title"
+            "calendar"
+            "buttons";
+        gap: 1rem;
+    }
+
+    .dashboard-title {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .dashboard-rates {
+        border-left: none !important;
+        padding-left: 0 !important;
+        padding-top: 0.5rem;
+        border-top: 1px solid #dee2e6;
+        width: 100%;
+    }
+
+    .dashboard-calendar {
+        justify-self: stretch;
+    }
+
+    .dashboard-calendar .input-group {
+        width: 100% !important;
+    }
+
+    .dashboard-calendar .form-select {
+        flex: 1;
+    }
+
+    .dashboard-buttons {
+        justify-self: start;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        width: 100%;
+        /* row-gap > высоты timestamp (top: 100% от Sheets-кнопки). */
+        row-gap: 1.75rem;
+        column-gap: 0.5rem;
+    }
+
+    .dashboard-buttons > * {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Блок Sheets+sync. */
+    .dashboard-buttons .position-relative {
+        width: 100%;
+    }
+
+    .dashboard-buttons .position-relative > a {
+        flex: 1;
+    }
+
+    /* ----- Page headers: кнопки под заголовком ----- */
+    .project-header-row,
+    .page-header {
+        flex-wrap: wrap;
+    }
+
+    .project-header-actions,
+    .page-header-actions {
+        flex-basis: 100%;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+
+        /* ----- Списки: чуть больше gap между карточками ----- */
+    #transactionList,
+    #projectList {
+        gap: 0.75rem;
+    }
+
+    /* ----- Транзакции: карточка, явный grid с areas (не subgrid) ----- */
+    #transactionList {
+        display: flex;
+        flex-direction: column;
+    }
+
+    #transactionList > .transaction-row-mobile {
+        grid-column: auto;
+        display: grid;
+        grid-template-columns: auto 1fr auto auto;
+        grid-template-areas:
+            "date    .       type    actions"
+            "amount  amount  amount  amount"
+            "project project project project"
+            "category category category category"
+            "description description description description";
+        row-gap: 0.5rem;
+        column-gap: 0.5rem;
+        padding: 1rem;
+    }
+
+    .transaction-date {
+        grid-area: date;
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .transaction-type-badge {
+        grid-area: type;
+        min-height: 31px;
+        padding: 0.35rem 0.85rem;
+        font-size: 0.85rem;
+        justify-self: end;
+    }
+
+    .transaction-amount {
+        grid-area: amount;
+        font-size: 1.5rem;
+        font-weight: 700;
+        line-height: 1.2;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        overflow-wrap: break-word;
+        word-break: break-word;
+    }
+
+    .transaction-project  { grid-area: project; }
+    .transaction-category { grid-area: category; }
+    .transaction-description { grid-area: description; }
+
+    .transaction-project,
+    .transaction-category,
+    .transaction-description {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        overflow-wrap: break-word;
+        word-break: break-word;
+    }
+
+    .transaction-actions {
+        grid-area: actions;
+        justify-self: end;
+        align-self: start;
+    }
+
+    .transaction-icon-btn,
+    .project-icon-btn {
+        min-height: 31px;
+        min-width: 31px;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.85rem;
+    }
+
+    .transaction-project::before {
+        content: "Проект: ";
+        color: #6c757d;
+        font-weight: normal;
+    }
+
+    .transaction-category::before {
+        content: "Категория: ";
+        color: #6c757d;
+        font-weight: normal;
+    }
+
+    .transaction-description:not(:empty)::before {
+        content: "Описание: ";
+        color: #6c757d;
+        font-weight: normal;
+    }
+
+    #projectList > .list-group-item {
+        padding: 1rem;
+    }
+}
+
+/* ============================================================
+   Detail pages — relation rows.
+   Блоки «Сотрудники» в /projects/<id> и «Проекты» в
+   /employees/<id> используют общую модель:
+   - вся строка — <a> на карточку связанной сущности;
+   - на ≥1200px имя и роль inline;
+   - на <1200px роль под именем (мобилка и десктоп от 175%);
+   - на <768px каждая строка — отдельная мини-карточка с явной
+     границей и скруглением, тач-таргет ~56px высоты.
+   ============================================================ */
+.relation-list {
+    padding: 0;
+}
+
+.relation-item {
+    padding: 0;
+}
+
+.relation-row-link {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 1.25rem;
+    color: inherit;
+    text-decoration: none;
+    transition: background-color 0.2s ease;
+}
+
+.relation-row-link:hover {
+    background-color: #f8f9fa;
+    color: inherit;
+}
+
+.relation-row-name {
+    font-weight: 600;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+@media (max-width: 1000px) {
+    .relation-row-link {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+}
+
+@media (max-width: 767px) {
+    /* Специфичность .relation-list.list-group-flush > .relation-item (0,3,0)
+       перекрывает .list-group-flush > .list-group-item (0,2,0),
+       поэтому border-bottom от Bootstrap заменяется на полную рамку
+       без !important. */
+    .relation-list.list-group-flush > .relation-item {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+    }
+
+    .relation-list.list-group-flush > .relation-item:last-child {
+        margin-bottom: 0;
+    }
+}
+
+
+/* ============================================================
+   Create / Edit forms — mobile.
+   ============================================================ */
+@media (max-width: 767px) {
+    h1 {
+        white-space: normal;
+        overflow-wrap: break-word;
+        word-break: break-word;
+    }
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 2rem;
+    margin-bottom: 2rem;
+}
+
+@media (max-width: 767px) {
+    .form-actions {
+        flex-direction: column;
+    }
+
+    .form-actions > .btn,
+    .form-actions > a.btn {
+        width: 100%;
+    }
+}
+
+
+/* ============================================================
+   Employee form — список привязок «проект + роль».
+   ============================================================ */
+.entry-content {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.entry-actions {
+    display: flex;
+    gap: 0.25rem;
+    flex-shrink: 0;
 }
