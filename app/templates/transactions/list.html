@@ -77,68 +77,48 @@
 <!-- Список транзакций -->
 <div class="list-group" id="transactionList">
     {% for t in transactions %}
-    <div class="list-group-item d-flex justify-content-between align-items-center"
+    <div class="list-group-item transaction-row-mobile"
          style="padding: 1rem 1.25rem;">
-
-        <!-- Левая часть: все данные -->
-        <div class="d-flex align-items-center" style="flex: 1; min-width: 0; overflow: hidden; gap: 8px;">
-
-            <!-- Дата и время в столбик, выравнивание по левому краю -->
-            <div class="d-flex flex-column text-nowrap text-muted flex-shrink-0"
-                 style="line-height: 1.2; min-width: 84px; text-align: left;">
+        <div class="transaction-mobile-header">
+            <div class="transaction-mobile-date">
                 {% if t.date %}
                 <span>{{ t.date.strftime('%d.%m.%Y') }}</span>
-                <span>{{ t.date.strftime('%H:%M') }}</span>
+                <span class="text-muted">{{ t.date.strftime('%H:%M') }}</span>
                 {% else %}
                 <span>—</span>
                 {% endif %}
             </div>
-
-            <!-- Тип: фиксированная ширина для выравнивания -->
-            <span class="badge {% if t.type == 'income' %}bg-success{% else %}bg-danger{% endif %} flex-shrink-0"
-                  style="min-width: 70px;">
+            <span class="badge {% if t.type == 'income' %}bg-success{% else %}bg-danger{% endif %}">
                 {{ 'Доход' if t.type == 'income' else 'Расход' }}
             </span>
+        </div>
 
-            <!-- Сумма -->
-            <span class="fw-bold flex-shrink-0" style="min-width: 140px; text-align: left;">
-                {{ t.amount|money }} {{ t.currency or 'RUB' }}
-            </span>
+        <div class="transaction-mobile-amount">
+            {{ t.amount|money }} {{ t.currency or 'RUB' }}
+        </div>
 
-            <!-- Проект -->
-            <span class="text-muted flex-shrink-0"
-                  style="min-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
-                  title="{{ t.project.name if t.project else '—' }}">
-                {{ t.project.name if t.project else '—' }}
-            </span>
-
-            <!-- Категория -->
-            <span class="text-muted flex-shrink-0"
-                  style="min-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
-                  title="{% if t.type == 'income' %}{{ income_categories.get(t.category_id, '—') }}{% else %}{{ expense_categories.get(t.category_id, '—') }}{% endif %}">
+        <div class="transaction-mobile-details">
+            <div><span class="text-muted">Проект:</span> {{ t.project.name if t.project else '—' }}</div>
+            <div>
+                <span class="text-muted">Категория:</span>
                 {% if t.type == 'income' %}
                     {{ income_categories.get(t.category_id, '—') }}
                 {% else %}
                     {{ expense_categories.get(t.category_id, '—') }}
                 {% endif %}
-            </span>
-
-            <!-- Описание: растягивается, обрезается при переполнении -->
+            </div>
             {% if t.description %}
-            <span class="text-muted text-truncate" style="flex: 1; min-width: 0;" title="{{ t.description }}">
-                <i class="fas fa-comment-dots me-1"></i>{{ t.description }}
-            </span>
+            <div><span class="text-muted">Описание:</span> {{ t.description }}</div>
             {% endif %}
         </div>
 
-        <!-- Правая часть: кнопки -->
-        <div class="d-flex align-items-center gap-2 flex-shrink-0" style="margin-left: 10px;">
-            {% if current_user.is_admin() %}
+        {% if current_user.is_admin() %}
+        <div class="transaction-mobile-actions">
             <a href="{{ url_for('main.transaction_edit', transaction_id=t.id, next=request.full_path.rstrip('?')) }}"
-               class="btn btn-sm btn-outline-secondary me-1" title="Редактировать">
+               class="btn btn-sm btn-outline-secondary" title="Редактировать">
                 <i class="fas fa-pen"></i>
             </a>
-                        <form method="post"
+            <form method="post"
                   action="{{ url_for('main.transaction_delete', transaction_id=t.id, next=request.full_path.rstrip('?')) }}"
                   style="display:inline;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -149,8 +129,8 @@
                     <i class="fas fa-trash"></i>
                 </button>
             </form>
-            {% endif %}
         </div>
+        {% endif %}
     </div>
     {% else %}
     <div class="list-group-item text-center text-muted">

@@ -661,3 +661,55 @@ h1 {
         flex-wrap: wrap;
     }
 }
+
+
+/* ============================================================
+   Mobile transactions list (≤767px).
+   Строка транзакции: шапка (дата + тип), крупная сумма,
+   детали (проект/категория/описание), кнопки внизу справа.
+   ============================================================ */
+.transaction-row-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.transaction-mobile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.transaction-mobile-date {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+
+.transaction-mobile-amount {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #212529;
+}
+
+.transaction-mobile-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.9rem;
+}
+
+.transaction-mobile-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 0.25rem;
+}
+
+/* Десктопный вариант — прежняя строка. Скрываем мобильную разметку на десктопе */
+@media (min-width: 768px) {
+    .transaction-row-mobile {
+        /* На десктопе оставляем тот же flex, что был в старой разметке */
+    }
+}
