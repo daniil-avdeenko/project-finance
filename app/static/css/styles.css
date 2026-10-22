@@ -16,21 +16,187 @@ body {
     box-shadow: 0 12px 28px rgba(0,0,0,0.10);
 }
 
-/* Градиентные карточки статистики */
+/* ============================================================
+   Градиентные карточки статистики.
+   ------------------------------------------------------------
+   Структура: .stat-card > .stat-icon (absolute) + .stat-content.
+   Иконка в правом верхнем углу через position: absolute — не
+   конкурирует с числом за горизонтальное место. На <1200px
+   иконка скрыта, контент получает всю ширину, чтобы длинные
+   суммы (162 616 834,60 ₽) помещались без обрезки.
+   Шрифт через clamp(): масштабируется с viewport. Суммы не
+   обрезаются многоточием — это главные показатели дашборда.
+   ============================================================ */
 .stat-card {
     color: #fff;
     border-radius: 16px;
     padding: 1.2rem;
-}
-.stat-card h2 {
-    font-weight: 700;
-    margin: 0;
-}
-.stat-card .stat-icon {
-    font-size: 2.2rem;
-    opacity: 0.7;
+    position: relative;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 
+@media (max-width: 1200px) {
+    .stat-card {
+        padding: 1rem;
+    }
+}
+
+.stat-card .stat-icon {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    font-size: clamp(1.5rem, 2.2vw, 2.2rem);
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+@media (max-width: 1200px) {
+    .stat-card .stat-icon {
+        display: none;
+    }
+}
+
+.stat-card .stat-content {
+    position: relative;
+    z-index: 1;
+    padding-right: clamp(2rem, 2.8vw, 3.2rem);
+    min-width: 0;
+}
+
+@media (max-width: 1200px) {
+    .stat-card .stat-content {
+        padding-right: 0;
+    }
+}
+
+.stat-card h6 {
+    font-size: clamp(0.7rem, 0.8vw + 0.35rem, 0.9rem);
+    margin-bottom: 0.4rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.stat-card h2 {
+    font-size: clamp(0.95rem, 1.1vw + 0.45rem, 1.5rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.stat-card .period-label {
+    font-size: clamp(0.6rem, 0.6vw + 0.3rem, 0.7rem);
+    font-weight: normal;
+}
+
+.stat-card .profitability-label {
+    display: block;
+    margin-top: 0.4rem;
+    font-size: clamp(0.6rem, 0.65vw + 0.3rem, 0.8rem);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Курсы в шапке дашборда: «84,50 ₽» — единое целое, не рвётся на ₽ */
+.dashboard-rates > span {
+    white-space: nowrap;
+}
+
+/* ============================================================
+   Дашборд: раскладка шапки (title + calendar + buttons).
+   ------------------------------------------------------------
+   Grid вместо flex-wrap: flex-wrap переставляет блоки по одному
+   справа налево — получается каша из отдельных кнопок. Grid
+   даёт строгий порядок через grid-template-areas.
+
+   Раскладка:
+   - Wide (>1100px): одна строка [title+rates] [calendar] [buttons].
+   - Narrow (≤1100px): две строки —
+     row 1: [title+rates] .......... [calendar]
+     row 2: ................ [all buttons] (по правому краю)
+   Шрифты и padding не уменьшаются — размеры одинаковы во всех
+   режимах, ничего не сжимается при зуме.
+   ============================================================ */
+.dashboard-header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas: "title calendar buttons";
+    align-items: center;
+    gap: 0.75rem;
+    padding-bottom: 1.3rem;
+}
+
+.dashboard-title {
+    grid-area: title;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.dashboard-calendar {
+    grid-area: calendar;
+    justify-self: end;
+}
+
+.dashboard-buttons {
+    grid-area: buttons;
+    justify-self: end;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* 2-row mode: title+calendar в строке 1, buttons справа в строке 2 */
+@media (max-width: 1100px) {
+    .dashboard-header {
+        grid-template-columns: 1fr auto;
+        grid-template-areas:
+            "title calendar"
+            "buttons buttons";
+        gap: 0.5rem;
+    }
+
+    .dashboard-title {
+        justify-self: start;
+    }
+
+    .dashboard-calendar {
+        justify-self: end;
+    }
+
+    .dashboard-buttons {
+        justify-self: end;
+    }
+}
+
+/* ============================================================
+   Responsive / zoom behavior
+   ============================================================ */
+
+/* Навбар: ссылки в одну строку, иконка и текст не разрываются */
+.navbar .nav-link {
+    white-space: nowrap;
+}
+
+/* h1 с иконкой: иконка и текст всегда в одной строке */
+h1 {
+    white-space: nowrap;
+}
+
+/* Кнопки не разрывают текст на две строки */
+.btn {
+    white-space: nowrap;
+}
+
+/* Список с hover-эффектом */
 .list-group-item-action {
     transition: background-color 0.2s, box-shadow 0.2s;
 }
@@ -102,6 +268,8 @@ body {
     white-space: nowrap;
     mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 30px), transparent 100%);
     -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 30px), transparent 100%);
+    flex: 1;
+    min-width: 0;
 }
 
 .project-title > span {
@@ -208,4 +376,138 @@ body {
 .dashboard-btn {
     min-width: 125px;
     text-align: center;
+}
+
+/* Chart page header: кнопка «Назад» всегда на первой строке справа */
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.chart-header-title {
+    flex: 1;
+    min-width: 0;
+}
+
+.chart-header-title h1 {
+    /* Переопределяет глобальный h1 { white-space: nowrap } из commit 1 */
+    white-space: normal;
+    margin: 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.chart-header > .btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+    /* Визуальное центрирование относительно первой строки h1.
+       h1 line-height ≈ 1.2 × font-size, btn-sm высота ≈ 31px.
+       margin-top компенсирует разницу. */
+    margin-top: 0.3rem;
+}
+
+/* Chart wrapper: canvas растягивается на всю ширину карточки,
+   высота фиксированная и адаптивная к viewport. */
+.chart-wrapper {
+    position: relative;
+    width: 100%;
+    height: clamp(280px, 45vh, 480px);
+}
+
+
+/* ============================================================
+   Project detail универсальная шапка страницы.
+   ============================================================ */
+.project-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+
+.project-header-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+}
+
+@media (max-width: 767px) {
+    .project-header-row {
+        flex-wrap: wrap;
+    }
+
+    .project-header-actions {
+        flex-basis: 100%;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+}
+
+
+/* ============================================================
+   Employees detail универсальная шапка страницы (header + actions).
+   ============================================================ */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.page-header-title {
+    flex: 1;
+    min-width: 0;
+}
+
+.page-header-title h1 {
+    /* Переопределяет глобальный h1 { white-space: nowrap } из commit 1 */
+    white-space: normal;
+    margin: 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.page-header-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+}
+
+@media (max-width: 767px) {
+    .page-header {
+        flex-wrap: wrap;
+    }
+
+    .page-header-actions {
+        flex-basis: 100%;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+}
+
+/* ============================================================
+   Employee detail — блок «Проекты».
+   ============================================================ */
+.employee-project-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.employee-project-link {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.employee-project-role {
+    flex-shrink: 0;
+    margin-left: auto;
 }

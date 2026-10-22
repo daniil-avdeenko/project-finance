@@ -4,76 +4,69 @@
 
 {% block content %}
 {% set back_url = request.args.get('next') or url_for('main.projects_list') %}
-<div class="d-flex justify-content-between align-items-start mb-4 gap-3">
-    <div class="flex-grow-1" style="min-width: 0;">
-        <h1 class="project-title mb-2">
+<div class="project-header mb-4">
+    <div class="project-header-row">
+        <h1 class="project-title mb-0">
             <span>📊 {{ project.name }}</span>
         </h1>
-        <p class="text-muted mb-0">{{ project.description or 'Описание отсутствует' }}</p>
+        <div class="project-header-actions">
+            {% if current_user.is_admin() %}
+            <a href="{{ url_for('main.project_edit', project_id=project.id, next=request.path) }}"
+               class="btn btn-outline-secondary">
+                <i class="fas fa-pen me-1"></i>Редактировать
+            </a>
+            <form method="post" action="{{ url_for('main.project_delete', project_id=project.id, next=back_url) }}"
+                  style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="button" class="btn btn-outline-danger"
+                        data-delete-url="{{ url_for('main.project_delete', project_id=project.id, next=back_url) }}"
+                        data-delete-name="{{ project.name }}">
+                    <i class="fas fa-trash me-1"></i>Удалить
+                </button>
+            </form>
+            {% endif %}
+            <a href="{{ back_url }}" class="btn btn-outline-secondary">← Назад</a>
+        </div>
     </div>
-        <div class="flex-shrink-0">
-        {% if current_user.is_admin() %}
-        <a href="{{ url_for('main.project_edit', project_id=project.id, next=request.path) }}" class="btn btn-outline-secondary me-2">
-            <i class="fas fa-pen me-1"></i>Редактировать
-        </a>
-                <form method="post" action="{{ url_for('main.project_delete', project_id=project.id, next=back_url) }}"
-              style="display:inline;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="button" class="btn btn-outline-danger"
-                    data-delete-url="{{ url_for('main.project_delete', project_id=project.id, next=back_url) }}"
-                    data-delete-name="{{ project.name }}">
-                <i class="fas fa-trash me-1"></i>Удалить
-            </button>
-        </form>
-        {% endif %}
-        <a href="{{ back_url }}" class="btn btn-outline-secondary ms-2">← Назад</a>
-    </div>
+    <p class="text-muted mb-0 mt-2">{{ project.description or 'Описание отсутствует' }}</p>
 </div>
 
-<!-- Градиентные карточки финансов (как на дашборде) -->
-<div class="row mb-4">
-    <div class="col-md-3">
+<!-- Градиентные карточки финансов -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-lg-3">
         <div class="stat-card bg-gradient-success">
-            <div class="d-flex justify-content-between">
-                <div>
-                    <h6 class="text-uppercase fw-light">Доходы</h6>
-                    <h2 style="font-size: 1.6rem;">{{ project.total_income|money }} ₽</h2>
-                </div>
-                <i class="fas fa-arrow-up stat-icon"></i>
+            <i class="fas fa-arrow-up stat-icon"></i>
+            <div class="stat-content">
+                <h6 class="text-uppercase fw-light">Доходы</h6>
+                <h2>{{ project.total_income|money }} ₽</h2>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-12 col-sm-6 col-lg-3">
         <div class="stat-card bg-gradient-danger">
-            <div class="d-flex justify-content-between">
-                <div>
-                    <h6 class="text-uppercase fw-light">Расходы</h6>
-                    <h2 style="font-size: 1.6rem;">{{ project.total_expense|money }} ₽</h2>
-                </div>
-                <i class="fas fa-arrow-down stat-icon"></i>
+            <i class="fas fa-arrow-down stat-icon"></i>
+            <div class="stat-content">
+                <h6 class="text-uppercase fw-light">Расходы</h6>
+                <h2>{{ project.total_expense|money }} ₽</h2>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-12 col-sm-6 col-lg-3">
         <div class="stat-card bg-gradient-{% if project.profit >= 0 %}primary{% else %}warning{% endif %}">
-            <div class="d-flex justify-content-between">
-                <div>
-                    <h6 class="text-uppercase fw-light">Прибыль</h6>
-                    <h2 style="font-size: 1.6rem;">{{ project.profit|money }} ₽</h2>
-                </div>
-                <i class="fas fa-coins stat-icon"></i>
+            <i class="fas fa-coins stat-icon"></i>
+            <div class="stat-content">
+                <h6 class="text-uppercase fw-light">Прибыль</h6>
+                <h2>{{ project.profit|money }} ₽</h2>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-12 col-sm-6 col-lg-3">
         <div class="stat-card bg-gradient-info"
              style="background: linear-gradient(135deg, #36d1dc 0%, #5b86e5 100%) !important;">
-            <div class="d-flex justify-content-between">
-                <div>
-                    <h6 class="text-uppercase fw-light">Рентабельность</h6>
-                    <h2 style="font-size: 1.6rem;">{{ "{:.1f}".format(project.profitability) }}%</h2>
-                </div>
-                <i class="fas fa-percent stat-icon"></i>
+            <i class="fas fa-percent stat-icon"></i>
+            <div class="stat-content">
+                <h6 class="text-uppercase fw-light">Рентабельность</h6>
+                <h2>{{ "{:.1f}".format(project.profitability) }}%</h2>
             </div>
         </div>
     </div>
@@ -86,7 +79,7 @@
                 <h5 class="mb-0">👥 Сотрудники</h5>
                 <span class="badge bg-primary rounded-pill">{{ project.employee_roles|length }}</span>
             </div>
-                        <ul class="list-group list-group-flush">
+            <ul class="list-group list-group-flush">
                 {% for er in project.employee_roles %}
                 <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
                     <a href="{{ url_for('main.employee_detail', employee_id=er.employee.id) }}"
@@ -118,6 +111,7 @@
 <h3 class="mt-4">📋 Транзакции</h3>
 <a href="{{ url_for('main.transaction_create', next=request.path) }}" class="btn btn-primary btn-sm mb-3">➕ Добавить транзакцию</a>
 
+<div class="table-responsive">
 <table class="table table-striped table-hover">
     <thead>
     <tr>
@@ -152,6 +146,7 @@
     {% endfor %}
     </tbody>
 </table>
+</div>
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
@@ -161,15 +156,32 @@
         const span = title.querySelector('span');
         if (!span) return;
 
-        // Проверяем, обрезается ли текст
-        const overflow = span.scrollWidth - title.clientWidth;
+        function updateMarquee() {
+            // Сбрасываем предыдущее состояние, чтобы пересчитать с нуля.
+            // При зуме/ресайзе ширина title меняется — старые значения
+            // scroll-distance и is-overflowing устаревают.
+            title.classList.remove('is-overflowing');
+            title.style.removeProperty('--scroll-distance');
+            title.style.removeProperty('--scroll-duration');
 
-        if (overflow > 0) {
+            const overflow = span.scrollWidth - title.clientWidth;
+            if (overflow <= 0) return;
+
             title.classList.add('is-overflowing');
             // Скорость прокрутки ~60px/сек
             const duration = Math.max(1.5, overflow / 200);
             title.style.setProperty('--scroll-distance', overflow + 'px');
             title.style.setProperty('--scroll-duration', duration + 's');
+        }
+
+        updateMarquee();
+
+        // ResizeObserver срабатывает при любом изменении размеров title:
+        // ресайз окна, браузерный зум, смена ориентации на мобилке.
+        if (typeof ResizeObserver !== 'undefined') {
+            new ResizeObserver(updateMarquee).observe(title);
+        } else {
+            window.addEventListener('resize', updateMarquee);
         }
     });
 </script>
