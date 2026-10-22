@@ -34,7 +34,7 @@ def test_secret_key_dev_fallback(monkeypatch):
 
 
 def test_security_headers_present(client):
-    """Все ключевые headers присутствуют в ответе."""
+    """Все ключевые security headers присутствуют в ответе."""
     response = client.get("/healthz")
 
     assert response.headers["X-Content-Type-Options"] == "nosniff"
@@ -42,6 +42,22 @@ def test_security_headers_present(client):
     assert "strict-origin-when-cross-origin" in response.headers["Referrer-Policy"]
     assert "geolocation=()" in response.headers["Permissions-Policy"]
     assert "default-src 'self'" in response.headers["Content-Security-Policy"]
+
+
+def test_csp_omits_upgrade_in_dev(client):
+    """В dev (HTTP, SESSION_COOKIE_SECURE=false) upgrade-insecure-requests нет."""
+    response = client.get("/healthz")
+
+    assert "upgrade-insecure-requests" not in response.headers["Content-Security-Policy"]
+
+
+def test_csp_adds_upgrade_in_https_mode(app):
+    """В HTTPS-режиме (SESSION_COOKIE_SECURE=true) upgrade-insecure-requests возвращается."""
+    app.config["SESSION_COOKIE_SECURE"] = True
+    client = app.test_client()
+
+    response = client.get("/healthz")
+
     assert "upgrade-insecure-requests" in response.headers["Content-Security-Policy"]
 
 

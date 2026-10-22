@@ -11,6 +11,7 @@ services:
     environment:
       FLASK_ENV: production
       DATABASE_URL: sqlite:////app/instance/project_finance.db
+      SESSION_COOKIE_SECURE: "false"
     volumes:
       - ./logs:/app/logs
       - ./instance:/app/instance
