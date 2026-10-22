@@ -270,22 +270,22 @@
                 ul.className = 'list-group';
                 entries.forEach((entry, idx) => {
                     const li = document.createElement('li');
-                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    li.className = 'list-group-item d-flex justify-content-between align-items-start gap-2';
                     if (idx === editingIdx) li.classList.add('editing-entry');
                     li.innerHTML = `
-                        <span>
+                        <div class="entry-content">
                             <i class="fas fa-folder-open text-primary me-2"></i>
                             <span class="fw-semibold">${entry.project_name}</span>
                             <span class="badge bg-secondary ms-2">${entry.role}</span>
-                        </span>
-                        <span>
-                            <button type="button" class="btn btn-sm btn-outline-secondary me-1 edit-entry" data-idx="${idx}" title="Редактировать">
+                        </div>
+                        <div class="entry-actions">
+                            <button type="button" class="btn btn-sm btn-outline-secondary edit-entry" data-idx="${idx}" title="Редактировать">
                                 <i class="fas fa-pen"></i>
                             </button>
                             <button type="button" class="btn btn-sm btn-outline-danger remove-entry" data-idx="${idx}" title="Удалить">
                                 <i class="fas fa-trash"></i>
                             </button>
-                        </span>
+                        </div>
                     `;
                     ul.appendChild(li);
                 });

@@ -931,3 +931,20 @@ h1 {
         width: 100%;
     }
 }
+
+
+/* ============================================================
+   Employee form — список привязок «проект + роль».
+   ============================================================ */
+.entry-content {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.entry-actions {
+    display: flex;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
