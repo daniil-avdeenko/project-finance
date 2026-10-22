@@ -375,3 +375,41 @@ h1 {
     min-width: 125px;
     text-align: center;
 }
+
+/* Chart page header: кнопка «Назад» всегда на первой строке справа */
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.chart-header-title {
+    flex: 1;
+    min-width: 0;
+}
+
+.chart-header-title h1 {
+    /* Переопределяет глобальный h1 { white-space: nowrap } из commit 1 */
+    white-space: normal;
+    margin: 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.chart-header > .btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+    /* Визуальное центрирование относительно первой строки h1.
+       h1 line-height ≈ 1.2 × font-size, btn-sm высота ≈ 31px.
+       margin-top компенсирует разницу. */
+    margin-top: 0.3rem;
+}
+
+/* Chart wrapper: canvas растягивается на всю ширину карточки,
+   высота фиксированная и адаптивная к viewport. */
+.chart-wrapper {
+    position: relative;
+    width: 100%;
+    height: clamp(280px, 45vh, 480px);
+}
