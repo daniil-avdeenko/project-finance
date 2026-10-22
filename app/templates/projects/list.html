@@ -31,38 +31,27 @@
     </div>
 </div>
 
-<div class="list-group">
+<div class="list-group" id="projectList">
     {% for project in projects %}
     <div class="list-group-item list-group-item-action project-row-mobile"
          style="cursor: pointer; transition: 0.2s;"
          data-url="{{ url_for('main.project_detail', project_id=project.id, next=request.full_path.rstrip('?')) }}">
 
-        <div class="project-row-main">
-            <div class="project-row-title" title="{{ project.name }}">
+        <div class="project-mobile-header">
+            <div class="project-mobile-title" title="{{ project.name }}">
                 <span class="fw-semibold">{{ project.name }}</span>
             </div>
-            <div class="project-row-desc" title="{{ project.description or '' }}">
-                <span class="text-muted">{{ project.description or 'Без описания' }}</span>
-            </div>
-        </div>
-
-        <div class="project-row-meta">
-            <div class="project-row-badges">
-                <span class="badge bg-success">{{ project.profit|money }} ₽</span>
-                <span class="badge bg-info">{{ "{:.1f}".format(project.profitability) }}%</span>
-            </div>
             {% if current_user.is_admin() %}
-            <div class="project-row-actions">
+            <div class="project-mobile-actions">
                 <a href="{{ url_for('main.project_edit', project_id=project.id, next=request.path) }}"
-                   class="btn btn-sm btn-outline-secondary"
+                   class="btn btn-sm btn-outline-secondary project-icon-btn"
                    title="Редактировать" onclick="event.stopPropagation();">
                     <i class="fas fa-pen"></i>
                 </a>
-                <form method="post"
-                      action="{{ url_for('main.project_delete', project_id=project.id, next=request.path) }}"
+                <form method="post" action="{{ url_for('main.project_delete', project_id=project.id, next=request.path) }}"
                       style="display:inline;" onclick="event.stopPropagation();">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="button" class="btn btn-sm btn-outline-danger"
+                    <button type="button" class="btn btn-sm btn-outline-danger project-icon-btn"
                             data-delete-url="{{ url_for('main.project_delete', project_id=project.id, next=request.path) }}"
                             data-delete-name="{{ project.name }}"
                             title="Удалить"
@@ -72,6 +61,15 @@
                 </form>
             </div>
             {% endif %}
+        </div>
+
+        <div class="project-mobile-desc" title="{{ project.description or '' }}">
+            <span class="text-muted">{{ project.description or 'Без описания' }}</span>
+        </div>
+
+        <div class="project-mobile-badges">
+            <span class="badge bg-success">{{ project.profit|money }} ₽</span>
+            <span class="badge bg-info">{{ "{:.1f}".format(project.profitability) }}%</span>
         </div>
     </div>
     {% else %}

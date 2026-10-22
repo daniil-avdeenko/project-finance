@@ -77,52 +77,51 @@
 <!-- Список транзакций -->
 <div class="list-group" id="transactionList">
     {% for t in transactions %}
-    <div class="list-group-item transaction-row-mobile"
-         style="padding: 1rem 1.25rem;">
-        <div class="transaction-mobile-header">
-            <div class="transaction-mobile-date">
-                {% if t.date %}
-                <span>{{ t.date.strftime('%d.%m.%Y') }}</span>
-                <span class="text-muted">{{ t.date.strftime('%H:%M') }}</span>
-                {% else %}
-                <span>—</span>
-                {% endif %}
-            </div>
-            <span class="badge {% if t.type == 'income' %}bg-success{% else %}bg-danger{% endif %}">
-                {{ 'Доход' if t.type == 'income' else 'Расход' }}
-            </span>
-        </div>
-
-        <div class="transaction-mobile-amount">
-            {{ t.amount|money }} {{ t.currency or 'RUB' }}
-        </div>
-
-        <div class="transaction-mobile-details">
-            <div><span class="text-muted">Проект:</span> {{ t.project.name if t.project else '—' }}</div>
-            <div>
-                <span class="text-muted">Категория:</span>
-                {% if t.type == 'income' %}
-                    {{ income_categories.get(t.category_id, '—') }}
-                {% else %}
-                    {{ expense_categories.get(t.category_id, '—') }}
-                {% endif %}
-            </div>
-            {% if t.description %}
-            <div><span class="text-muted">Описание:</span> {{ t.description }}</div>
+    <div class="list-group-item transaction-row-mobile">
+        <div class="transaction-date">
+            {% if t.date %}
+            <span class="transaction-date-day">{{ t.date.strftime('%d.%m.%Y') }}</span>
+            <span class="transaction-date-time text-muted">{{ t.date.strftime('%H:%M') }}</span>
+            {% else %}
+            <span>—</span>
             {% endif %}
         </div>
 
+        <span class="transaction-type-badge {% if t.type == 'income' %}bg-success{% else %}bg-danger{% endif %}">
+            {{ 'Доход' if t.type == 'income' else 'Расход' }}
+        </span>
+
+        <div class="transaction-amount">
+            {{ t.amount|money }} {{ t.currency or 'RUB' }}
+        </div>
+
+        <div class="transaction-project" title="{{ t.project.name if t.project else '' }}">
+            {{ t.project.name if t.project else '—' }}
+        </div>
+
+        <div class="transaction-category">
+            {% if t.type == 'income' %}
+                {{ income_categories.get(t.category_id, '—') }}
+            {% else %}
+                {{ expense_categories.get(t.category_id, '—') }}
+            {% endif %}
+        </div>
+
+        <div class="transaction-description" title="{{ t.description or '' }}">
+            {{ t.description or '' }}
+        </div>
+
         {% if current_user.is_admin() %}
-        <div class="transaction-mobile-actions">
+        <div class="transaction-actions">
             <a href="{{ url_for('main.transaction_edit', transaction_id=t.id, next=request.full_path.rstrip('?')) }}"
-               class="btn btn-sm btn-outline-secondary" title="Редактировать">
+               class="btn btn-sm btn-outline-secondary transaction-icon-btn" title="Редактировать">
                 <i class="fas fa-pen"></i>
             </a>
             <form method="post"
                   action="{{ url_for('main.transaction_delete', transaction_id=t.id, next=request.full_path.rstrip('?')) }}"
                   style="display:inline;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="button" class="btn btn-sm btn-outline-danger"
+                <button type="button" class="btn btn-sm btn-outline-danger transaction-icon-btn"
                         data-delete-url="{{ url_for('main.transaction_delete', transaction_id=t.id, next=request.full_path.rstrip('?')) }}"
                         data-delete-name="транзакцию {{ t.amount|money }} {{ t.currency or 'RUB' }}"
                         title="Удалить">
