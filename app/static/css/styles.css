@@ -948,3 +948,22 @@ h1 {
     gap: 0.25rem;
     flex-shrink: 0;
 }
+
+
+/* ============================================================
+   Page header actions — блок кнопок справа от заголовка
+   («Экспорт» + «Создать/Добавить»).
+   ============================================================ */
+.page-header-actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-left: auto;
+    min-width: 0;
+}
+
+.page-header-actions-row > .btn,
+.page-header-actions-row > .btn-group {
+    flex-shrink: 0;
+}
