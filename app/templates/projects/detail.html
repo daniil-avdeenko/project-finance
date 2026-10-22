@@ -79,14 +79,14 @@
                 <h5 class="mb-0">👥 Сотрудники</h5>
                 <span class="badge bg-primary rounded-pill">{{ project.employee_roles|length }}</span>
             </div>
-            <ul class="list-group list-group-flush">
+                        <ul class="list-group list-group-flush relation-list">
                 {% for er in project.employee_roles %}
-                <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+                <li class="list-group-item p-0 relation-item">
                     <a href="{{ url_for('main.employee_detail', employee_id=er.employee.id) }}"
-                       class="text-decoration-none fw-semibold">
-                        {{ er.employee.name }}
+                       class="relation-row-link">
+                        <span class="relation-row-name">{{ er.employee.name }}</span>
+                        <span class="badge bg-secondary">{{ er.role }}</span>
                     </a>
-                    <span class="badge bg-secondary">{{ er.role }}</span>
                 </li>
                 {% else %}
                 <li class="list-group-item text-muted">Нет сотрудников</li>
@@ -136,7 +136,7 @@
             {{ expense_categories.get(t.category_id, '—') }}
             {% endif %}
         </td>
-        <td>{{ t.amount|money }} {{ t.currency or 'RUB' }}</td>
+        <td class="text-nowrap">{{ t.amount|money }} {{ t.currency or 'RUB' }}</td>
         <td>{{ t.description or '—' }}</td>
     </tr>
     {% else %}

@@ -836,3 +836,67 @@ h1 {
         padding: 1rem;
     }
 }
+
+/* ============================================================
+   Detail pages — relation rows.
+   Блоки «Сотрудники» в /projects/<id> и «Проекты» в
+   /employees/<id> используют общую модель:
+   - вся строка — <a> на карточку связанной сущности;
+   - на ≥1200px имя и роль inline;
+   - на <1200px роль под именем (мобилка и десктоп от 175%);
+   - на <768px каждая строка — отдельная мини-карточка с явной
+     границей и скруглением, тач-таргет ~56px высоты.
+   ============================================================ */
+.relation-list {
+    padding: 0;
+}
+
+.relation-item {
+    padding: 0;
+}
+
+.relation-row-link {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 1.25rem;
+    color: inherit;
+    text-decoration: none;
+    transition: background-color 0.2s ease;
+}
+
+.relation-row-link:hover {
+    background-color: #f8f9fa;
+    color: inherit;
+}
+
+.relation-row-name {
+    font-weight: 600;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+@media (max-width: 1000px) {
+    .relation-row-link {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+}
+
+@media (max-width: 767px) {
+    /* Специфичность .relation-list.list-group-flush > .relation-item (0,3,0)
+       перекрывает .list-group-flush > .list-group-item (0,2,0),
+       поэтому border-bottom от Bootstrap заменяется на полную рамку
+       без !important. */
+    .relation-list.list-group-flush > .relation-item {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+    }
+
+    .relation-list.list-group-flush > .relation-item:last-child {
+        margin-bottom: 0;
+    }
+}
