@@ -92,9 +92,11 @@
         <a href="{{ url_for('main.chart') }}" class="btn btn-outline-dark btn-sm">
             <i class="fas fa-chart-line me-1"></i>График
         </a>
+        {% if current_user.is_admin() %}
         <a href="{{ url_for('main.project_create', next=request.path) }}" class="btn btn-primary btn-sm">
             <i class="fas fa-plus me-1"></i>Проект
         </a>
+        {% endif %}
     </div>
 </div>
 

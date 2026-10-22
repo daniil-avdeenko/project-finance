@@ -236,6 +236,28 @@ def test_user_has_no_edit_button_in_transaction_row(regular_client, app):
     assert f"/transactions/{tx_id}/edit" not in text
 
 
+def test_admin_sees_project_button_on_dashboard(auth_client):
+    """Админ видит кнопку «+ Проект» на дашборде."""
+    response = auth_client.get("/")
+    text = response.get_data(as_text=True)
+
+    assert "/projects/create" in text
+
+
+def test_user_does_not_see_project_button_on_dashboard(regular_client):
+    """Обычный пользователь не видит кнопку «+ Проект» на дашборде.
+
+    Backend /projects/create защищён @admin_required — кнопка скрыта
+    для UX-консистентности с /projects, где такая же проверка уже есть.
+    """
+    response = regular_client.get("/")
+    text = response.get_data(as_text=True)
+
+    # URL /projects/create рендерится только в этой кнопке
+    # (карточки проектов ведут на /projects/<id>)
+    assert "/projects/create" not in text
+
+
 # ============================================================
 #   CRUD ПРОЕКТОВ
 # ============================================================
