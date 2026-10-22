@@ -24,9 +24,8 @@ body {
    конкурирует с числом за горизонтальное место. На <1200px
    иконка скрыта, контент получает всю ширину, чтобы длинные
    суммы (162 616 834,60 ₽) помещались без обрезки.
-   Шрифт через clamp(): масштабируется с viewport, а не прыгает
-   на брейкпоинтах. Суммы не обрезаются многоточием — это
-   главные показатели дашборда.
+   Шрифт через clamp(): масштабируется с viewport. Суммы не
+   обрезаются многоточием — это главные показатели дашборда.
    ============================================================ */
 .stat-card {
     color: #fff;
@@ -106,6 +105,76 @@ body {
 /* Курсы в шапке дашборда: «84,50 ₽» — единое целое, не рвётся на ₽ */
 .dashboard-rates > span {
     white-space: nowrap;
+}
+
+/* ============================================================
+   Дашборд: раскладка шапки (title + calendar + buttons).
+   ------------------------------------------------------------
+   Grid вместо flex-wrap: flex-wrap переставляет блоки по одному
+   справа налево — получается каша из отдельных кнопок. Grid
+   даёт строгий порядок через grid-template-areas.
+
+   Раскладка:
+   - Wide (>1100px): одна строка [title+rates] [calendar] [buttons].
+   - Narrow (≤1100px): две строки —
+     row 1: [title+rates] .......... [calendar]
+     row 2: ................ [all buttons] (по правому краю)
+   Шрифты и padding не уменьшаются — размеры одинаковы во всех
+   режимах, ничего не сжимается при зуме.
+   ============================================================ */
+.dashboard-header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas: "title calendar buttons";
+    align-items: center;
+    gap: 0.75rem;
+    padding-bottom: 1.3rem;
+}
+
+.dashboard-title {
+    grid-area: title;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.dashboard-calendar {
+    grid-area: calendar;
+    justify-self: end;
+}
+
+.dashboard-buttons {
+    grid-area: buttons;
+    justify-self: end;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* 2-row mode: title+calendar в строке 1, buttons справа в строке 2 */
+@media (max-width: 1100px) {
+    .dashboard-header {
+        grid-template-columns: 1fr auto;
+        grid-template-areas:
+            "title calendar"
+            "buttons buttons";
+        gap: 0.5rem;
+    }
+
+    .dashboard-title {
+        justify-self: start;
+    }
+
+    .dashboard-calendar {
+        justify-self: end;
+    }
+
+    .dashboard-buttons {
+        justify-self: end;
+    }
 }
 
 /* ============================================================
