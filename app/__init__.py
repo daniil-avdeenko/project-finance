@@ -19,10 +19,43 @@ from app.logging_config import setup_logging
 from app.security import register_security_headers
 
 load_dotenv()
+
+
+def _limiter_storage_uri() -> str:
+    """
+    URI хранилища для Flask-Limiter.
+
+    Приоритет:
+    1. RATELIMIT_STORAGE_URI — явный override.
+    2. REDIS_URL — если задан и Redis отвечает на ping на старте.
+    3. memory:// — если REDIS_URL не задан или Redis недоступен
+       на старте.
+    """
+    if explicit := os.getenv("RATELIMIT_STORAGE_URI"):
+        return explicit
+
+    redis_url = os.getenv("REDIS_URL")
+    if not redis_url:
+        return "memory://"
+
+    try:
+        import redis as _redis
+
+        client = _redis.from_url(redis_url, socket_timeout=1, socket_connect_timeout=1)
+        try:
+            client.ping()
+        finally:
+            client.close()
+        return redis_url
+    except Exception:
+        return "memory://"
+
+
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=[],
-    storage_uri="memory://",
+    storage_uri=_limiter_storage_uri(),
+    swallow_errors=True,
 )
 db = SQLAlchemy()
 

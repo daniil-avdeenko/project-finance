@@ -177,3 +177,53 @@ def test_proxy_fix_wraps_wsgi_app(app):
     from werkzeug.middleware.proxy_fix import ProxyFix
 
     assert isinstance(app.wsgi_app, ProxyFix)
+
+
+def test_limiter_uses_redis_when_available(monkeypatch):
+    """Если REDIS_URL задан и Redis отвечает — Limiter использует его."""
+    import redis as redis_lib
+
+    from app import _limiter_storage_uri
+
+    # Fake Redis-клиент, который отвечает на ping
+    class _FakeClient:
+        def ping(self):
+            return True
+
+        def close(self):
+            pass
+
+    def _fake_from_url(url, **_kwargs):
+        return _FakeClient()
+
+    monkeypatch.setenv("REDIS_URL", "redis://fake:6379/0")
+    monkeypatch.delenv("RATELIMIT_STORAGE_URI", raising=False)
+    monkeypatch.setattr(redis_lib, "from_url", _fake_from_url)
+
+    assert _limiter_storage_uri() == "redis://fake:6379/0"
+
+
+def test_limiter_falls_back_to_memory_when_redis_unavailable(monkeypatch):
+    """Если Redis на ping падает — fallback на memory://, приложение не падает."""
+    import redis as redis_lib
+
+    from app import _limiter_storage_uri
+
+    def _broken_from_url(url, **_kwargs):
+        raise redis_lib.ConnectionError("refused")
+
+    monkeypatch.setenv("REDIS_URL", "redis://broken:6379/0")
+    monkeypatch.delenv("RATELIMIT_STORAGE_URI", raising=False)
+    monkeypatch.setattr(redis_lib, "from_url", _broken_from_url)
+
+    assert _limiter_storage_uri() == "memory://"
+
+
+def test_limiter_respects_explicit_storage_uri(monkeypatch):
+    """RATELIMIT_STORAGE_URI перекрывает REDIS_URL."""
+    from app import _limiter_storage_uri
+
+    monkeypatch.setenv("REDIS_URL", "redis://from-redis-url:6379/0")
+    monkeypatch.setenv("RATELIMIT_STORAGE_URI", "redis://from-explicit:6379/1")
+
+    assert _limiter_storage_uri() == "redis://from-explicit:6379/1"
