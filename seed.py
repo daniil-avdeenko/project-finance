@@ -2,11 +2,11 @@
 Наполнение БД тестовыми данными.
 
 Схема: 6 проектов (4 отечественных + 2 зарубежных), 30 сотрудников
-с ролями на проектах, исторические курсы USD/EUR за 12 месяцев,
+с ролями на проектах, исторические курсы USD/EUR/CNY за 12 месяцев,
 транзакции за период существования проектов.
 
 Реалистичная модель данных:
-- Доходы отечественных проектов — RUB, зарубежных — EUR/USD.
+- Доходы отечественных проектов — RUB, зарубежных — USD/EUR/CNY.
 - Расходы в основном RUB (ЗП, налоги, юр. услуги, аренда сервера).
 - Валютные расходы (командировки, внешние программисты, ИИ, маркетинг) —
   только у зарубежных проектов.
@@ -454,7 +454,8 @@ EMPLOYEES: list[tuple[str, list[tuple[int, str]]]] = [
 
 def _make_email(name: str, external: bool = False) -> str:
     """Строит email из ФИО: имя.фамилия@domain."""
-    prefix = name.lower().replace(" ", ".")
+    parts = name.lower().split()
+    prefix = parts[0] if len(parts) < 2 else f"{parts[1]}.{parts[0]}"
     domain = "@external.com" if external else "@company.ru"
     return prefix + domain
 
@@ -497,6 +498,42 @@ def _is_external(roles: list[tuple[int, str]]) -> bool:
     return all(role == "Внешний разработчик" for _, role in roles)
 
 
+def _random_transaction_date(
+    month_start: datetime,
+    month_end: datetime,
+    project_start: datetime,
+    now: datetime,
+) -> datetime:
+    """
+    Случайный рабочий момент в границах месяца и проекта.
+
+    Ограничивает диапазон так, чтобы транзакция не падала до старта проекта
+    и не уходила в будущее. Часы — 9..17, минуты — 0 или 30.
+    """
+    low = max(month_start, project_start)
+    high = min(month_end, now)
+    if low >= high:
+        return low.replace(hour=12, minute=0, second=0, microsecond=0)
+
+    span = (high - low).total_seconds()
+    moment = low + timedelta(seconds=random.uniform(0, span))
+
+    if (high - low).days >= 1:
+        moment = moment.replace(
+            hour=random.randint(9, 17),
+            minute=random.choice([0, 30]),
+            second=0,
+            microsecond=0,
+        )
+
+    if moment < low:
+        moment = (low + timedelta(minutes=30)).replace(second=0, microsecond=0)
+    if moment > high:
+        moment = (high - timedelta(minutes=30)).replace(second=0, microsecond=0)
+
+    return moment
+
+
 # ============================================================
 #   SEED
 # ============================================================
@@ -506,6 +543,15 @@ def seed():
     os.environ["EVENTS_ENABLED"] = "false"
     app = create_app()
     with app.app_context():
+        # ---------- 0. ОЧИСТКА ПРОЕКТНЫХ ДАННЫХ ----------
+        # Повторный запуск seed не должен плодить дубликаты.
+        Transaction.query.delete()
+        EmployeeProject.query.delete()
+        Project.query.delete()
+        Employee.query.delete()
+        db.session.commit()
+        print("🧹 Старые проектные данные удалены")
+
         # ---------- 1. ПОЛЬЗОВАТЕЛИ ----------
         if not User.query.filter_by(username="admin").first():
             admin = User(username="admin", role="admin")
@@ -604,12 +650,10 @@ def seed():
         CurrencyRate.query.delete()
         db.session.commit()
 
-        base_rate = {"USD": 84.0, "EUR": 97.0, "CNY": 11.5}
         months_back_max = 12
-
         for months_back in range(months_back_max + 1):
             rate_date = (now - timedelta(days=months_back * 30)).date()
-            for code, base in base_rate.items():
+            for code, base in APPROX_RATES.items():
                 drift = random.uniform(-3.0, 3.0)
                 db.session.add(
                     CurrencyRate(
@@ -619,9 +663,8 @@ def seed():
                         rate_rub=round(base + drift, 4),
                     )
                 )
-
         db.session.commit()
-        print(f"✅ Курсы валют созданы " f"({len(base_rate) * (months_back_max + 1)} записей)")
+        print(f"✅ Курсы валют созданы " f"({len(APPROX_RATES) * (months_back_max + 1)} записей)")
 
         # ---------- 7. ТРАНЗАКЦИИ ----------
         for proj_idx, project in enumerate(projects):
@@ -632,8 +675,13 @@ def seed():
 
             current = start_date
             while current < end_date:
-                next_month = current.replace(day=28) + timedelta(days=4)
-                next_month = next_month.replace(day=1)
+                # Первое число следующего месяца - 00:00:00.
+                next_month = (
+                    current.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                    + timedelta(days=32)
+                ).replace(day=1)
+                month_start = current
+                month_end = next_month - timedelta(seconds=1)
 
                 target_income_rub = p_def["target_income_month"]
                 target_expense_rub = p_def["target_expense_month"]
@@ -644,22 +692,13 @@ def seed():
                 for _ in range(num_income):
                     cat = random.choice(income_cats_for_proj)
                     rub_amount = round(
-                        target_income_rub / num_income * random.uniform(0.7, 1.3),
+                        target_income_rub / num_income * random.uniform(0.8, 1.2),
                         2,
                     )
                     currency = _pick_income_currency(project_currency)
                     amount = _amount_in_currency(rub_amount, currency)
 
-                    day = random.randint(1, 28)
-                    t_date = current.replace(day=min(day, 28)) + timedelta(
-                        days=random.randint(0, 2)
-                    )
-                    t_date = t_date.replace(
-                        hour=random.randint(9, 17),
-                        minute=random.choice([0, 30]),
-                    )
-                    if t_date > end_date:
-                        t_date = end_date - timedelta(days=1)
+                    t_date = _random_transaction_date(month_start, month_end, start_date, end_date)
 
                     db.session.add(
                         Transaction(
@@ -688,22 +727,13 @@ def seed():
                 for _ in range(num_expense):
                     cat = random.choice(expense_cats_for_proj)
                     rub_amount = round(
-                        target_expense_rub / num_expense * random.uniform(0.7, 1.3),
+                        target_expense_rub / num_expense * random.uniform(0.9, 1.1),
                         2,
                     )
                     currency = _pick_expense_currency(cat.name, project_currency)
                     amount = _amount_in_currency(rub_amount, currency)
 
-                    day = random.randint(1, 28)
-                    t_date = current.replace(day=min(day, 28)) + timedelta(
-                        days=random.randint(0, 2)
-                    )
-                    t_date = t_date.replace(
-                        hour=random.randint(9, 17),
-                        minute=random.choice([0, 30]),
-                    )
-                    if t_date > end_date:
-                        t_date = end_date - timedelta(days=1)
+                    t_date = _random_transaction_date(month_start, month_end, start_date, end_date)
 
                     db.session.add(
                         Transaction(
@@ -720,9 +750,7 @@ def seed():
                 # --- НАЛОГИ: всегда RUB, ~13% от ФОТ ---
                 if "Налоги и сборы" in p_def["expense_cats"]:
                     tax_cat = expense_cats["Налоги и сборы"]
-                    t_date = current.replace(day=28, hour=18, minute=0)
-                    if t_date > end_date:
-                        t_date = end_date - timedelta(days=1)
+                    t_date = _random_transaction_date(month_start, month_end, start_date, end_date)
 
                     db.session.add(
                         Transaction(
